@@ -2,10 +2,16 @@ import ctypes
 import os
 import sys
 import weakref
+import time
+import json
 
-arch_str = 'x64Linux2.6gcc4.1.1' if sys.maxsize > 2**32 else 'i86Linux2.6gcc4.1.1'
-_ddscore_lib = ctypes.CDLL(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str, 'libnddscore.so'), ctypes.RTLD_GLOBAL)
-_ddsc_lib = ctypes.CDLL(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str, 'libnddsc.so'))
+arch_str = 'x64Darwin14clang6.0'
+
+# arch_str = 'x64Linux2.6gcc4.1.1' if sys.maxsize > 2**32 else 'i86Linux2.6gcc4.1.1'  ## this sys.maxsize trick only indicates that the python executable is 64 or 32 bit.
+os.chdir(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str))
+print os.path.join(os.environ['NDDSHOME'], 'lib', arch_str)
+_ddscore_lib = ctypes.CDLL('libnddscore.dylib', ctypes.RTLD_GLOBAL)
+_ddsc_lib = ctypes.CDLL('libnddsc.dylib')
 
 # Error checkers
 
@@ -14,6 +20,7 @@ class Error(Exception):
 
 def check_code(result, func, arguments):
     if result != 0:
+        print type(result), result
         raise Error({
             1: 'error',
             2: 'unsupported',
@@ -31,7 +38,7 @@ def check_code(result, func, arguments):
 
 def check_null(result, func, arguments):
     if not result:
-        raise Error()
+        raise Error('Null check failed')
     return result
 
 def check_ex(result, func, arguments):
@@ -232,12 +239,18 @@ def _define_func((p, errcheck, restype, argtypes)):
     setattr(DDSFunc, p, f)
 map(_define_func, [
     ('DomainParticipantFactory_get_instance', check_null, ctypes.POINTER(DDSType.DomainParticipantFactory), []),
+    ('DomainParticipantFactory_set_default_participant_qos_with_profile', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p, ctypes.c_char_p]),
     ('DomainParticipantFactory_create_participant', check_null, ctypes.POINTER(DDSType.DomainParticipant), [ctypes.POINTER(DDSType.DomainParticipantFactory), DDS_DomainId_t, ctypes.POINTER(DDSType.DomainParticipantQos), ctypes.POINTER(DDSType.DomainParticipantListener), DDS_StatusMask]),
+    ('DomainParticipantFactory_create_participant_with_profile', check_null, ctypes.POINTER(DDSType.DomainParticipant), [ctypes.POINTER(DDSType.DomainParticipantFactory), DDS_DomainId_t, ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.DomainParticipantListener), DDS_StatusMask]),
     ('DomainParticipantFactory_delete_participant', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.POINTER(DDSType.DomainParticipant)]),
+    ('DomainParticipant_set_default_library', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p]),
+    ('DomainParticipant_set_default_profile', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p, ctypes.c_char_p]),
     
     ('DomainParticipant_create_publisher', check_null, ctypes.POINTER(DDSType.Publisher), [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.PublisherQos), ctypes.POINTER(DDSType.PublisherListener), DDS_StatusMask]),
+    ('DomainParticipant_create_publisher_with_profile', check_null, ctypes.POINTER(DDSType.Publisher), [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.PublisherListener), DDS_StatusMask]),
     ('DomainParticipant_delete_publisher', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.Publisher)]),
     ('DomainParticipant_create_subscriber', check_null, ctypes.POINTER(DDSType.Subscriber), [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.SubscriberQos), ctypes.POINTER(DDSType.SubscriberListener), DDS_StatusMask]),
+    ('DomainParticipant_create_subscriber_with_profile', check_null, ctypes.POINTER(DDSType.Subscriber), [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.SubscriberListener), DDS_StatusMask]),
     ('DomainParticipant_delete_subscriber', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.Subscriber)]),
     ('DomainParticipant_create_topic', check_null, ctypes.POINTER(DDSType.Topic), [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.TopicQos), ctypes.POINTER(DDSType.TopicListener), DDS_StatusMask]),
     ('DomainParticipant_delete_topic', check_code, DDS_ReturnCode_t, [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.Topic)]),
@@ -412,11 +425,11 @@ class Topic(object):
         self.data_type = data_type
         
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
-        self._support.register_type(self._dds._participant, self.data_type.name)
+        self._support.register_type(self._dds._participant, self.data_type._get_typecode().name(ex()))
         
         self._topic = topic = self._dds._participant.create_topic(
             self.name,
-            self.data_type.name,
+            self.data_type._get_typecode().name(ex()),
             get('TOPIC_QOS_DEFAULT', DDSType.TopicQos),
             None,
             0,
@@ -445,7 +458,7 @@ class Topic(object):
             dds._publisher.delete_datawriter(writer)
             dds._subscriber.delete_datareader(reader)
             dds._participant.delete_topic(topic)
-            support.unregister_type(dds._participant, data_type.name)
+            support.unregister_type(dds._participant, data_type._get_typecode().name(ex()))
             support.delete()
             
             _refs.remove(ref)
@@ -502,7 +515,9 @@ class Topic(object):
             self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
 class DDS(object):
-    def __init__(self, domain_id=0):
+    def __init__(self, library=None, profile=None, domain_id=0):
+        if library and profile:
+            DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(library, profile)
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
             domain_id,
             get('PARTICIPANT_QOS_DEFAULT', DDSType.DomainParticipantQos),
@@ -549,7 +564,12 @@ class LibraryType(object):
         self._lib, self.name = lib, name
         del lib, name
         
-        assert self._get_typecode().name(ex()) == self.name
+        tc = self._get_typecode()
+        # for i in xrange(tc.member_count(ex())):
+        #     print tc.member_name(i, ex())
+            
+        # print self._get_typecode().name(ex())
+        # assert self._get_typecode().name(ex()) == self.name
     
     def _get_typecode(self):
         f = getattr(self._lib, self.name + '_get_typecode')
