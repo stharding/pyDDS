@@ -5,14 +5,48 @@ import weakref
 import time
 import json
 import collections
+import uuid
+import exceptions
 
 arch_str = 'x64Darwin14clang6.0'
 
 # arch_str = 'x64Linux2.6gcc4.1.1' if sys.maxsize > 2**32 else 'i86Linux2.6gcc4.1.1'  ## this sys.maxsize trick only indicates that the python executable is 64 or 32 bit.
 os.chdir(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str))
-print os.path.join(os.environ['NDDSHOME'], 'lib', arch_str)
 _ddscore_lib = ctypes.CDLL('libnddscore.dylib', ctypes.RTLD_GLOBAL)
 _ddsc_lib = ctypes.CDLL('libnddsc.dylib')
+
+# some types
+enum = ctypes.c_int
+
+DDS_Char             = ctypes.c_char
+DDS_Wchar            = ctypes.c_wchar
+DDS_Octet            = ctypes.c_ubyte
+DDS_Short            = ctypes.c_int16
+DDS_UnsignedShort    = ctypes.c_uint16
+DDS_Long             = ctypes.c_int32
+DDS_UnsignedLong     = ctypes.c_uint32
+DDS_LongLong         = ctypes.c_int64
+DDS_UnsignedLongLong = ctypes.c_uint64
+DDS_Float            = ctypes.c_float
+DDS_Double           = ctypes.c_double
+DDS_LongDouble       = ctypes.c_longdouble
+DDS_Boolean          = ctypes.c_bool
+DDS_Enum             = DDS_UnsignedLong
+
+DDS_DynamicDataMemberId = DDS_Long
+DDS_ReturnCode_t        = enum
+DDS_ExceptionCode_t     = enum
+def ex():
+    return ctypes.byref(DDS_ExceptionCode_t())
+DDS_DomainId_t = ctypes.c_int32
+DDS_TCKind = enum
+
+DDS_SampleStateMask = DDS_UnsignedLong
+DDS_ViewStateMask = DDS_UnsignedLong
+DDS_InstanceStateMask = DDS_UnsignedLong
+DDS_StatusMask = DDS_UnsignedLong
+
+DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED = 0
 
 # Error checkers
 
@@ -21,7 +55,6 @@ class Error(Exception):
 
 def check_code(result, func, arguments):
     if result != 0:
-        print type(result), result
         raise Error({
             1:  'error',
             2:  'unsupported',
@@ -90,13 +123,26 @@ class DDSType(object):
         setattr(self, attr, contents)
         return contents
 
+DDSType.StringSeq._fields_ = [
+    ('_owned', DDS_Boolean),
+    ('_contiguous_buffer', ctypes.POINTER(ctypes.POINTER(ctypes.c_char))),
+    ('_discontiguous_buffer', ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ctypes.c_char)))),
+    ('_maximum', DDS_UnsignedLong),
+    ('_length', DDS_UnsignedLong),
+    ('_sequence_init', DDS_Long),
+    ('_read_token1', ctypes.c_void_p),
+    ('_read_token2', ctypes.c_void_p),
+    ('_elementAllocParams', DDSType.SeqElementTypeAllocationParams_t),
+    ('_elementDeallocParams', DDSType.SeqElementTypeDeallocationParams_t),
+]
+
 DDSType.Topic._fields_ = [
     ('_as_Entity', ctypes.c_void_p),
     ('_as_TopicDescription', ctypes.POINTER(DDSType.TopicDescription)),
 ]
 
 DDSType.ContentFilteredTopic._fields_ = [
-    ('_as_topicdescription', ctypes.POINTER(DDSType.TopicDescription)),
+    ('_as_TopicDescription', ctypes.POINTER(DDSType.TopicDescription)),
     ('_narrow', ctypes.POINTER(DDSType.ContentFilteredTopic)),
     ('_get_filter_expression', ctypes.c_char_p),
     ('_get_expression_parameters', DDSType.DDS_ReturnCode_t),
@@ -147,38 +193,6 @@ DDS_HANDLE_NIL = DDSType.InstanceHandle_t((ctypes.c_byte * 16)(*[0]*16), 16, Fal
     ('original_publication_virtual_sequence_number', DDS_SequenceNumber_t),
 ]'''
 
-# some types
-enum = ctypes.c_int
-
-DDS_Char             = ctypes.c_char
-DDS_Wchar            = ctypes.c_wchar
-DDS_Octet            = ctypes.c_ubyte
-DDS_Short            = ctypes.c_int16
-DDS_UnsignedShort    = ctypes.c_uint16
-DDS_Long             = ctypes.c_int32
-DDS_UnsignedLong     = ctypes.c_uint32
-DDS_LongLong         = ctypes.c_int64
-DDS_UnsignedLongLong = ctypes.c_uint64
-DDS_Float            = ctypes.c_float
-DDS_Double           = ctypes.c_double
-DDS_LongDouble       = ctypes.c_longdouble
-DDS_Boolean          = ctypes.c_bool
-DDS_Enum             = DDS_UnsignedLong
-
-DDS_DynamicDataMemberId = DDS_Long
-DDS_ReturnCode_t        = enum
-DDS_ExceptionCode_t     = enum
-def ex():
-    return ctypes.byref(DDS_ExceptionCode_t())
-DDS_DomainId_t = ctypes.c_int32
-DDS_TCKind = enum
-
-DDS_SampleStateMask = DDS_UnsignedLong
-DDS_ViewStateMask = DDS_UnsignedLong
-DDS_InstanceStateMask = DDS_UnsignedLong
-DDS_StatusMask = DDS_UnsignedLong
-
-DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED = 0
 
 DDSType.Listener._fields_ = [
     ('listener_data', ctypes.c_void_p),
@@ -294,7 +308,7 @@ map(_define_func, [
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.TopicQos), ctypes.POINTER(DDSType.TopicListener), DDS_StatusMask]),
     ('DomainParticipant_create_contentfilteredtopic',
         check_null, ctypes.POINTER(DDSType.ContentFilteredTopic), 
-        [ctypes.c_char_p, ctypes.POINTER(DDSType.Topic), ctypes.c_char_p, DDSType.StringSeq]),
+        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.POINTER(DDSType.Topic), ctypes.c_char_p, ctypes.POINTER(DDSType.StringSeq)]),
     ('DomainParticipant_delete_topic',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.Topic)]),
@@ -430,6 +444,9 @@ map(_define_func, [
     
     ('Wstring_free',
         None, None, [ctypes.c_wchar_p]),
+
+    ('StringSeq_from_array',
+        None, DDS_Boolean, [ctypes.POINTER(DDSType.StringSeq), ctypes.POINTER(ctypes.c_char_p), DDS_Long]),
 ])
 
 def write_into_dd_member(obj, dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED):
@@ -533,32 +550,22 @@ def unpack_dd(dd):
 _outside_refs = set()
 _refs = set()
 
-class Topic(object):
-    def __init__(self, dds, name, data_type):
+class TopicSuper(object):
+    def __init__(self, dds, name, data_type, related_topic=None, filter_expression=None):
         self._dds = dds
         self.name = name
         self.data_type = data_type
+        self._related_topic = related_topic
+        self._filter_expression = filter_expression
         
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
         self._support.register_type(self._dds._participant, self.data_type._get_typecode().name(ex()))
         
-        self._topic = topic = self._dds._participant.create_topic(
-            self.name,
-            self.data_type._get_typecode().name(ex()),
-            get('TOPIC_QOS_DEFAULT', DDSType.TopicQos),
-            None,
-            0,
-        )
-        
-        self._writer = writer = self._dds._publisher.create_datawriter(
-            self._topic,
-            get('DATAWRITER_QOS_DEFAULT', DDSType.DataWriterQos),
-            None,
-            0,
-        )
+        self._topic = topic       = self._create_topic()
+        self._writer = writer     = self._create_writer()
         self._dyn_narrowed_writer = DDSFunc.DynamicDataWriter_narrow(self._writer)
-        
-        self._listener = None
+        self._listener            = None        
+
         self._reader = reader = self._dds._subscriber.create_datareader(
             self._topic.as_topicdescription(),
             get('DATAREADER_QOS_DEFAULT', DDSType.DataReaderQos),
@@ -579,9 +586,17 @@ class Topic(object):
             _refs.remove(ref)
         _refs.add(weakref.ref(self, cleanup))
     
+    def _create_topic(self):
+        raise NotImplementedError("You must make an instance of a subclass that implements this method")
+
+    def _create_writer(self):
+        raise NotImplementedError("You must make an instance of a subclass that implements this method")
+
     def _enable_listener(self):
         assert self._listener is None
-        self._listener = DDSType.DataReaderListener(on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._data_available_callback))
+        self._listener = DDSType.DataReaderListener(
+            on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._data_available_callback)
+        )
         self._reader.set_listener(self._listener, DATA_AVAILABLE_STATUS)
         _outside_refs.add(self) # really want self._listener, but this does the same thing
     
@@ -625,12 +640,6 @@ class Topic(object):
         instance = self._update(instance, data)
         self.send(instance)
 
-    def subscribe(self, callback, filter=None):
-        if filter:
-            print "Filtering not yet implemented"
-        else:
-            self.add_data_available_callback(lambda: callback(self.recv()))
-
     def send(self, msg):
         sample = self._support.create_data()
         
@@ -645,12 +654,73 @@ class Topic(object):
         DDSFunc.DynamicDataSeq_initialize(data_seq)
         info_seq = DDSType.SampleInfoSeq()
         DDSFunc.SampleInfoSeq_initialize(info_seq)
-        self._dyn_narrowed_reader.take(ctypes.byref(data_seq), ctypes.byref(info_seq), 1, get('ANY_SAMPLE_STATE', DDS_SampleStateMask), get('ANY_VIEW_STATE', DDS_ViewStateMask), get('ANY_INSTANCE_STATE', DDS_InstanceStateMask))
+        self._dyn_narrowed_reader.take(
+            ctypes.byref(data_seq), 
+            ctypes.byref(info_seq), 
+            1,
+            get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
+            get('ANY_VIEW_STATE', DDS_ViewStateMask),
+            get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+        )
         try:
             info = info_seq.get_reference(0)
             return unpack_dd(data_seq.get_reference(0))
         finally:
             self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
+
+class FilteredTopic(TopicSuper):
+    def __init__(self, dds, name, data_type, related_topic, filter_expression):
+        super(FilteredTopic, self).__init__(dds, name, data_type, related_topic, filter_expression)
+
+    def _create_writer(self):
+        return self._dds._publisher.create_datawriter(
+            self._related_topic,
+            get('DATAWRITER_QOS_DEFAULT', DDSType.DataWriterQos),
+            None,
+            0,
+        )
+
+    def _create_topic(self):
+        self.filter_name = str(uuid.uuid4())
+        self._filter_params = DDSType.StringSeq()
+        DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)
+
+        return self._dds._participant.create_contentfilteredtopic(
+            self.filter_name,
+            self._related_topic,
+            self._filter_expression,
+            self._filter_params
+        )
+
+class Topic(TopicSuper):
+    def __init__(self, dds, name, data_type):
+        super(Topic, self).__init__(dds, name, data_type)
+        self._filtered_topics = {}
+
+    def _create_writer(self):
+        return self._dds._publisher.create_datawriter(
+            self._topic,
+            get('DATAWRITER_QOS_DEFAULT', DDSType.DataWriterQos),
+            None,
+            0,
+        )
+
+    def _create_topic(self):
+        return self._dds._participant.create_topic(
+            self.name,
+            self.data_type._get_typecode().name(ex()),
+            get('TOPIC_QOS_DEFAULT', DDSType.TopicQos),
+            None,
+            0,
+        )
+
+    def subscribe(self, callback, filter_expression=None):
+        if filter_expression:
+            filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression)
+            filtered_topic.add_data_available_callback(lambda: callback(filtered_topic.recv()))
+            self._filtered_topics[filtered_topic.filter_name] = filtered_topic
+        else:
+            self.add_data_available_callback(lambda: callback(self.recv()))
 
 class DDS(object):
     def __init__(self, library=None, profile=None, domain_id=0):
