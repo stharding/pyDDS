@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import ctypes
 import os
 import sys
@@ -8,10 +10,10 @@ import collections
 import uuid
 import exceptions
 
-arch_str = 'x64Darwin14clang6.0'
+# arch_str = 'x64Darwin14clang6.0'
 
 # arch_str = 'x64Linux2.6gcc4.1.1' if sys.maxsize > 2**32 else 'i86Linux2.6gcc4.1.1'  ## this sys.maxsize trick only indicates that the python executable is 64 or 32 bit.
-os.chdir(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str))
+# os.chdir(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str))
 _ddscore_lib = ctypes.CDLL('libnddscore.dylib', ctypes.RTLD_GLOBAL)
 _ddsc_lib = ctypes.CDLL('libnddsc.dylib')
 
@@ -209,6 +211,14 @@ DDSType.DataReaderListener._fields_ = [
     ('on_sample_lost', ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader), ctypes.POINTER(DDSType.SampleLostStatus))),
 ]
 
+DDSType.LivelinessChangedStatus._fields_ = [
+    ('alive_count', DDS_Long),
+    ('not_alive_count', DDS_Long),
+    ('alive_count_change', DDS_Long),
+    ('not_alive_count_change', DDS_Long),
+    ('last_publication_handle', DDSType.InstanceHandle_t),
+]
+
 class TCKind(object):
     NULL             =  0
     SHORT            =  1
@@ -366,6 +376,9 @@ map(_define_func, [
     ('DynamicData_get_string',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(ctypes.c_char_p), ctypes.POINTER(DDS_UnsignedLong), ctypes.c_char_p, DDS_DynamicDataMemberId]),
+    ('DynamicData_get_ulong',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDS_UnsignedLong), ctypes.c_char_p, DDS_DynamicDataMemberId]),
     ('DynamicData_get_wstring',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(ctypes.c_wchar_p), ctypes.POINTER(DDS_UnsignedLong), ctypes.c_char_p, DDS_DynamicDataMemberId]),
@@ -424,6 +437,8 @@ map(_define_func, [
         check_ex, ctypes.c_char_p, [ctypes.POINTER(DDSType.TypeCode), DDS_UnsignedLong, ctypes.POINTER(DDS_ExceptionCode_t)]),
     ('TypeCode_member_type',
         check_ex, ctypes.POINTER(DDSType.TypeCode), [ctypes.POINTER(DDSType.TypeCode), DDS_UnsignedLong, ctypes.POINTER(DDS_ExceptionCode_t)]),
+    ('TypeCode_find_member_by_name',
+        check_ex, DDS_UnsignedLong, [ctypes.POINTER(DDSType.TypeCode), ctypes.c_char_p, ctypes.POINTER(DDS_ExceptionCode_t)]),
     
     ('DynamicDataSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
@@ -475,6 +490,10 @@ def write_into_dd_member(obj, dd, member_name=None, member_id=DDS_DYNAMIC_DATA_M
         dd.set_string(member_name, member_id, obj)
     elif kind == TCKind.WSTRING:
         dd.set_wstring(member_name, member_id, obj)
+    elif kind == TCKind.ENUM:
+        assert isinstance(obj, str)
+        index = tc.find_member_by_name(obj, ex())
+        dd.set_ulong(member_name, member_id, index)
     else:
         raise NotImplementedError(kind)
 
@@ -490,6 +509,10 @@ def write_into_dd(obj, dd):
         assert isinstance(obj, list)
         for i, x in enumerate(obj):
             write_into_dd_member(x, dd, member_id=i+1)
+    # elif kind == TCKind.ENUM:
+    #     assert isinstance(obj, str)
+    #     index = DDS_UnsignedLong
+
     else:
         raise NotImplementedError(kind)
 
@@ -527,6 +550,10 @@ def unpack_dd_member(dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_
             return inner.value
         finally:
             DDSFunc.Wstring_free(inner)
+    elif kind == TCKind.ENUM:
+        val = ctypes.c_uint()
+        dd.get_ulong(ctypes.byref(val), member_name, member_id)  # isn't programming via side-effects gross?
+        return tc.member_name(val, ex())
     else:
         raise NotImplementedError(kind)
 
@@ -595,11 +622,18 @@ class TopicSuper(object):
     def _enable_listener(self):
         assert self._listener is None
         self._listener = DDSType.DataReaderListener(
-            on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._data_available_callback)
+            on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._data_available_callback),
+            on_liveliness_changed=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader), ctypes.POINTER(DDSType.LivelinessChangedStatus))(self._on_liveliness_changed)
         )
         self._reader.set_listener(self._listener, DATA_AVAILABLE_STATUS)
         _outside_refs.add(self) # really want self._listener, but this does the same thing
     
+    def _on_liveliness_changed(self, listener_data, reader, status):
+        print("\nstatus.alive_count:", status.alive_count, 
+              "\nstatus.not_alive_count:", status.not_alive_count,
+              "\nstatus.alive_count_change:", status.alive_count_change,
+              "\nstatus.not_alive_count_change:", status.not_alive_count_change)
+
     def _disable_listener(self):
         assert self._listener is not None
         self._reader.set_listener(None, 0)
@@ -636,11 +670,22 @@ class TopicSuper(object):
         return obj
 
     def publish(self, data):
+
+        """
+        Publishes an instance of this topic on the DDS bus with the provided data.
+        The input data may be sparse, but every entry in the data must be a field
+        in the topic. If the provided data is sparse, a full instance of the topic
+        will be published and the non-specified fields will recieve default values.
+
+        Parameters:
+            data (Dict) the data to publish on the bus.
+        """
+
         instance = self._generate_instance()
         instance = self._update(instance, data)
-        self.send(instance)
+        self._send(instance)
 
-    def send(self, msg):
+    def _send(self, msg):
         sample = self._support.create_data()
         
         try:
@@ -649,7 +694,7 @@ class TopicSuper(object):
         finally:
             self._support.delete_data(sample)
     
-    def recv(self):
+    def _recv(self):
         data_seq = DDSType.DynamicDataSeq()
         DDSFunc.DynamicDataSeq_initialize(data_seq)
         info_seq = DDSType.SampleInfoSeq()
@@ -683,7 +728,7 @@ class FilteredTopic(TopicSuper):
     def _create_topic(self):
         self.filter_name = str(uuid.uuid4())
         self._filter_params = DDSType.StringSeq()
-        DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)
+        DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)  ## TODO: add in full support for parameterized filters
 
         return self._dds._participant.create_contentfilteredtopic(
             self.filter_name,
@@ -715,12 +760,30 @@ class Topic(TopicSuper):
         )
 
     def subscribe(self, callback, filter_expression=None):
+
+        """
+        Makes a DDS subcription for this topic with the provided callback.
+        If desired, a filter expression [1] can be specified and only topics
+        matching the filter will be returned.
+
+        NOTE: currently filter parameters are not supported. Only provide filters
+              without parameters!
+
+        Parameters:
+            callback          (function) this function will be called with a dictionary
+                                         containing the topic (name:value) pairs
+
+            filter_expression (String)   The optional filter expression
+
+        [1] https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm
+        """
+
         if filter_expression:
             filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression)
-            filtered_topic.add_data_available_callback(lambda: callback(filtered_topic.recv()))
+            filtered_topic.add_data_available_callback(lambda: callback(filtered_topic._recv()))
             self._filtered_topics[filtered_topic.filter_name] = filtered_topic
         else:
-            self.add_data_available_callback(lambda: callback(self.recv()))
+            self.add_data_available_callback(lambda: callback(self._recv()))
 
 class DDS(object):
     def __init__(self, library=None, profile=None, domain_id=0):
