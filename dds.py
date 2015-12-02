@@ -110,7 +110,7 @@ class DDSFunc(object):
 class DDSType(object):
     def __getattr__(self, attr):
         contents = type(attr, (ctypes.Structure,), {})
-        
+
         def g(self2, attr2):
             f = getattr(DDSFunc, attr + '_' + attr2)
             def m(*args):
@@ -121,7 +121,7 @@ class DDSType(object):
         contents.__getattr__ = g
         # take advantage of POINTERs being cached to make type pointers do the same
         ctypes.POINTER(contents).__getattr__ = g
-        
+
         setattr(self, attr, contents)
         return contents
 
@@ -294,7 +294,7 @@ map(_define_func, [
     ('DomainParticipant_set_default_profile',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p, ctypes.c_char_p]),
-    
+
     ('DomainParticipant_create_publisher',
         check_null, ctypes.POINTER(DDSType.Publisher),
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.PublisherQos), ctypes.POINTER(DDSType.PublisherListener), DDS_StatusMask]),
@@ -317,30 +317,30 @@ map(_define_func, [
         check_null, ctypes.POINTER(DDSType.Topic),
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.TopicQos), ctypes.POINTER(DDSType.TopicListener), DDS_StatusMask]),
     ('DomainParticipant_create_contentfilteredtopic',
-        check_null, ctypes.POINTER(DDSType.ContentFilteredTopic), 
+        check_null, ctypes.POINTER(DDSType.ContentFilteredTopic),
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.POINTER(DDSType.Topic), ctypes.c_char_p, ctypes.POINTER(DDSType.StringSeq)]),
     ('DomainParticipant_delete_topic',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.Topic)]),
-    
+
     ('Publisher_create_datawriter',
         check_null, ctypes.POINTER(DDSType.DataWriter),
         [ctypes.POINTER(DDSType.Publisher), ctypes.POINTER(DDSType.Topic), ctypes.POINTER(DDSType.DataWriterQos), ctypes.POINTER(DDSType.DataWriterListener), DDS_StatusMask]),
     ('Publisher_delete_datawriter',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.Publisher), ctypes.POINTER(DDSType.DataWriter)]),
-    
+
     ('Subscriber_create_datareader',
         check_null, ctypes.POINTER(DDSType.DataReader),
         [ctypes.POINTER(DDSType.Subscriber), ctypes.POINTER(DDSType.TopicDescription), ctypes.POINTER(DDSType.DataReaderQos), ctypes.POINTER(DDSType.DataReaderListener), DDS_StatusMask]),
     ('Subscriber_delete_datareader',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.Subscriber), ctypes.POINTER(DDSType.DataReader)]),
-    
+
     ('DataReader_set_listener',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DataReader), ctypes.POINTER(DDSType.DataReaderListener), DDS_StatusMask]),
-    
+
     ('DynamicDataTypeSupport_new',
         check_null, ctypes.POINTER(DDSType.DynamicDataTypeSupport),
         [ctypes.POINTER(DDSType.TypeCode), ctypes.POINTER(DDSType.DynamicDataTypeProperty_t)]),
@@ -362,7 +362,7 @@ map(_define_func, [
     ('DynamicDataTypeSupport_print_data',
         None, None,
         [ctypes.POINTER(DDSType.DynamicDataTypeSupport), ctypes.POINTER(DDSType.DynamicData)]),
-    
+
     ('DynamicData_new',
         check_null, ctypes.POINTER(DDSType.DynamicData),
         [ctypes.POINTER(DDSType.TypeCode), ctypes.POINTER(DDSType.DynamicDataProperty_t)]),
@@ -409,14 +409,14 @@ map(_define_func, [
     ('DynamicData_delete',
         None, None,
         [ctypes.POINTER(DDSType.DynamicData)]),
-    
+
     ('DynamicDataWriter_narrow',
         check_null, ctypes.POINTER(DDSType.DynamicDataWriter),
         [ctypes.POINTER(DDSType.DataWriter)]),
     ('DynamicDataWriter_write',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicDataWriter), ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
-    
+
     ('DynamicDataReader_narrow',
         check_null, ctypes.POINTER(DDSType.DynamicDataReader),
         [ctypes.POINTER(DDSType.DataReader)]),
@@ -426,7 +426,7 @@ map(_define_func, [
     ('DynamicDataReader_return_loan',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicDataReader), ctypes.POINTER(DDSType.DynamicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq)]),
-    
+
     ('TypeCode_name',
         check_ex, ctypes.c_char_p, [ctypes.POINTER(DDSType.TypeCode), ctypes.POINTER(DDS_ExceptionCode_t)]),
     ('TypeCode_kind',
@@ -439,24 +439,24 @@ map(_define_func, [
         check_ex, ctypes.POINTER(DDSType.TypeCode), [ctypes.POINTER(DDSType.TypeCode), DDS_UnsignedLong, ctypes.POINTER(DDS_ExceptionCode_t)]),
     ('TypeCode_find_member_by_name',
         check_ex, DDS_UnsignedLong, [ctypes.POINTER(DDSType.TypeCode), ctypes.c_char_p, ctypes.POINTER(DDS_ExceptionCode_t)]),
-    
+
     ('DynamicDataSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
     ('DynamicDataSeq_get_length',
         None, DDS_Long, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
     ('DynamicDataSeq_get_reference',
         check_null, ctypes.POINTER(DDSType.DynamicData), [ctypes.POINTER(DDSType.DynamicDataSeq), DDS_Long]),
-    
+
     ('SampleInfoSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.SampleInfoSeq)]),
     ('SampleInfoSeq_get_length',
         None, DDS_Long, [ctypes.POINTER(DDSType.SampleInfoSeq)]),
     ('SampleInfoSeq_get_reference',
         check_null, ctypes.POINTER(DDSType.SampleInfo), [ctypes.POINTER(DDSType.SampleInfoSeq), DDS_Long]),
-    
+
     ('String_free',
         None, None, [ctypes.c_char_p]),
-    
+
     ('Wstring_free',
         None, None, [ctypes.c_wchar_p]),
 
@@ -467,7 +467,7 @@ map(_define_func, [
 def write_into_dd_member(obj, dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED):
     tc = ctypes.POINTER(DDSType.TypeCode)()
     dd.get_member_type(ctypes.byref(tc), member_name, member_id, ex())
-    
+
     kind = tc.kind(ex())
     if kind in _dyn_basic_types:
         func_name, data_type, bounds = _dyn_basic_types[kind]
@@ -519,7 +519,7 @@ def write_into_dd(obj, dd):
 def unpack_dd_member(dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED):
     tc = ctypes.POINTER(DDSType.TypeCode)()
     dd.get_member_type(ctypes.byref(tc), member_name, member_id, ex())
-    
+
     kind = tc.kind(ex())
     if kind in _dyn_basic_types:
         func_name, data_type, bounds = _dyn_basic_types[kind]
@@ -574,8 +574,8 @@ def unpack_dd(dd):
     else:
         raise NotImplementedError(kind)
 
-_outside_refs = set()
-_refs = set()
+_outside_refs = set()    # TODO: What do these sets do?
+_refs = set()            # TODO: What do these sets do?
 
 class TopicSuper(object):
     def __init__(self, dds, name, data_type, related_topic=None, filter_expression=None):
@@ -584,14 +584,14 @@ class TopicSuper(object):
         self.data_type = data_type
         self._related_topic = related_topic
         self._filter_expression = filter_expression
-        
+
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
         self._support.register_type(self._dds._participant, self.data_type._get_typecode().name(ex()))
-        
+
         self._topic = topic       = self._create_topic()
         self._writer = writer     = self._create_writer()
         self._dyn_narrowed_writer = DDSFunc.DynamicDataWriter_narrow(self._writer)
-        self._listener            = None        
+        self._listener            = None
 
         self._reader = reader = self._dds._subscriber.create_datareader(
             self._topic.as_topicdescription(),
@@ -600,19 +600,19 @@ class TopicSuper(object):
             0,
         )
         self._dyn_narrowed_reader = DDSFunc.DynamicDataReader_narrow(self._reader)
-        
+
         self._callbacks = {}
-        
+
         def cleanup(ref):
             dds._publisher.delete_datawriter(writer)
             dds._subscriber.delete_datareader(reader)
             dds._participant.delete_topic(topic)
             support.unregister_type(dds._participant, data_type._get_typecode().name(ex()))
             support.delete()
-            
+
             _refs.remove(ref)
         _refs.add(weakref.ref(self, cleanup))
-    
+
     def _create_topic(self):
         raise NotImplementedError("You must make an instance of a subclass that implements this method")
 
@@ -627,9 +627,9 @@ class TopicSuper(object):
         )
         self._reader.set_listener(self._listener, DATA_AVAILABLE_STATUS)
         _outside_refs.add(self) # really want self._listener, but this does the same thing
-    
+
     def _on_liveliness_changed(self, listener_data, reader, status):
-        print("\nstatus.alive_count:", status.alive_count, 
+        print("\nstatus.alive_count:", status.alive_count,
               "\nstatus.not_alive_count:", status.not_alive_count,
               "\nstatus.alive_count_change:", status.alive_count_change,
               "\nstatus.not_alive_count_change:", status.not_alive_count_change)
@@ -639,7 +639,7 @@ class TopicSuper(object):
         self._reader.set_listener(None, 0)
         self._listener = None
         _outside_refs.remove(self)
-    
+
     def add_data_available_callback(self, cb):
         '''Warning: callback is called back in another thread!'''
         if not self._callbacks:
@@ -647,12 +647,12 @@ class TopicSuper(object):
         ref = max(self._callbacks) if self._callbacks else 0
         self._callbacks[ref] = cb
         return ref
-    
+
     def remove_data_available_callback(self, ref):
         del self._callbacks[ref]
         if not self._callbacks:
             self._disable_listener()
-    
+
     def _data_available_callback(self, listener_data, datareader):
         for cb in self._callbacks.itervalues():
             cb()
@@ -687,21 +687,21 @@ class TopicSuper(object):
 
     def _send(self, msg):
         sample = self._support.create_data()
-        
+
         try:
             write_into_dd(msg, sample)
             self._dyn_narrowed_writer.write(sample, DDS_HANDLE_NIL)
         finally:
             self._support.delete_data(sample)
-    
+
     def _recv(self):
         data_seq = DDSType.DynamicDataSeq()
         DDSFunc.DynamicDataSeq_initialize(data_seq)
         info_seq = DDSType.SampleInfoSeq()
         DDSFunc.SampleInfoSeq_initialize(info_seq)
         self._dyn_narrowed_reader.take(
-            ctypes.byref(data_seq), 
-            ctypes.byref(info_seq), 
+            ctypes.byref(data_seq),
+            ctypes.byref(info_seq),
             1,
             get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
             get('ANY_VIEW_STATE', DDS_ViewStateMask),
@@ -795,30 +795,30 @@ class DDS(object):
             None,
             0,
         )
-        
+
         self._publisher = publisher = self._participant.create_publisher(
             get('PUBLISHER_QOS_DEFAULT', DDSType.PublisherQos),
             None,
             0,
         )
-        
+
         self._subscriber = subscriber = self._participant.create_subscriber(
             get('SUBSCRIBER_QOS_DEFAULT', DDSType.SubscriberQos),
             None,
             0,
         )
         self._open_topics = weakref.WeakValueDictionary()
-        
+
         def cleanup(ref):
             participant.delete_subscriber(subscriber)
             participant.delete_publisher(publisher)
-            
+
             # very slow for some reason
             DDSFunc.DomainParticipantFactory_get_instance().delete_participant(participant)
-            
+
             _refs.remove(ref)
         _refs.add(weakref.ref(self, cleanup))
-    
+
     def get_topic(self, name, data_type):
         res = self._open_topics.get(name, None)
         if res is not None:
@@ -834,10 +834,10 @@ class LibraryType(object):
     def __init__(self, lib, name):
         self._lib, self.name = lib, name
         del lib, name
-        
+
         tc = self._get_typecode()
         assert self._get_typecode().name(ex()).replace('::', '_') == self.name.replace('::', '_')
-    
+
     def _get_typecode(self):
         f = getattr(self._lib, self.name + '_get_typecode')
         f.argtypes = []
@@ -848,7 +848,7 @@ class LibraryType(object):
 class Library(object):
     def __init__(self, so_path):
         self._lib = ctypes.CDLL(so_path)
-    
+
     def __getattr__(self, attr):
         res = LibraryType(self._lib, attr)
         setattr(self, attr, res)
