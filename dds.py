@@ -9,6 +9,7 @@ import json
 import collections
 import uuid
 import exceptions
+import traceback
 
 # arch_str = 'x64Darwin14clang6.0'
 
@@ -43,19 +44,40 @@ def ex():
 DDS_DomainId_t = ctypes.c_int32
 DDS_TCKind = enum
 
-DDS_SampleStateMask = DDS_UnsignedLong
-DDS_ViewStateMask = DDS_UnsignedLong
+DDS_SampleStateMask   = DDS_UnsignedLong
+DDS_ViewStateMask     = DDS_UnsignedLong
 DDS_InstanceStateMask = DDS_UnsignedLong
-DDS_StatusMask = DDS_UnsignedLong
+DDS_StatusMask        = DDS_UnsignedLong
+DDS_SampleFlag        = DDS_Long
+DDS_SampleStateKind   = DDS_Long
+DDS_ViewStateKind     = DDS_Long
+DDS_InstanceStateKind = DDS_Long
 
 DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED = 0
 
+DDS_LENGTH_UNLIMITED      = DDS_Long(-1)
+DDS_NOT_READ_SAMPLE_STATE = 2
+DDS_ALIVE_INSTANCE_STATE  = 1
+DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE   = 2
+DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE = 4
 # Error checkers
 
 class Error(Exception):
     pass
 
+class NoDataError(Exception):
+    pass
+
+def check_take(result, func, arguments):
+    print("---------- Begin 'take' function results ----------")
+    print("res:", result)
+    print("args:", arguments)
+    print("---------- End 'take' function results ----------")
+    return result
+
 def check_code(result, func, arguments):
+    if result == 11:
+        raise NoDataError()
     if result != 0:
         raise Error({
             1:  'error',
@@ -125,6 +147,11 @@ class DDSType(object):
         setattr(self, attr, contents)
         return contents
 
+DDSType.Time_t._fields_ = [
+    ('sec', DDS_Long),
+    ('nanosec', DDS_UnsignedLong),
+]
+
 DDSType.StringSeq._fields_ = [
     ('_owned', DDS_Boolean),
     ('_contiguous_buffer', ctypes.POINTER(ctypes.POINTER(ctypes.c_char))),
@@ -173,11 +200,11 @@ DDSType.InstanceHandle_t._fields_ = [
 ]
 DDS_HANDLE_NIL = DDSType.InstanceHandle_t((ctypes.c_byte * 16)(*[0]*16), 16, False)
 
-'''DDSType.SampleInfo._fields_ = [
+DDSType.SampleInfo._fields_ = [
     ('sample_state', DDS_SampleStateKind),
     ('view_state', DDS_ViewStateKind),
     ('instance_state', DDS_InstanceStateKind),
-    ('source_timestamp', DDS_Time_t),
+    ('source_timestamp', DDSType.Time_t),
     ('instance_handle', DDSType.InstanceHandle_t),
     ('publication_handle', DDSType.InstanceHandle_t),
     ('disposed_generation_count', DDS_Long),
@@ -186,15 +213,18 @@ DDS_HANDLE_NIL = DDSType.InstanceHandle_t((ctypes.c_byte * 16)(*[0]*16), 16, Fal
     ('generation_rank', DDS_Long),
     ('absolute_generation_rank', DDS_Long),
     ('valid_data', DDS_Boolean),
-    ('reception_timestamp', DDS_Time_t),
-    ('publication_sequence_number', DDS_SequenceNumber_t),
-    ('reception_sequence_number', DDS_SequenceNumber_t),
-    ('publication_virtual_guid', DDS_GUID_t),
-    ('publication_virtual_sequence_number', DDS_SequenceNumber_t),
-    ('original_publication_virtual_guid', DDS_GUID_t),
-    ('original_publication_virtual_sequence_number', DDS_SequenceNumber_t),
-]'''
-
+    ('reception_timestamp', DDSType.Time_t),
+    ('publication_sequence_number', DDSType.SequenceNumber_t),
+    ('reception_sequence_number', DDSType.SequenceNumber_t),
+    ('original_publication_virtual_guid', DDSType.GUID_t),
+    ('original_publication_virtual_sequence_number', DDSType.SequenceNumber_t),
+    ('related_publication_virtual_guid', DDSType.GUID_t),
+    ('related_publication_virtual_sequence_number', DDSType.SequenceNumber_t),
+    ('flag', DDS_SampleFlag),
+    ('source_guid', DDSType.GUID_t),
+    ('related_source_guid', DDSType.GUID_t),
+    ('related_subscription_guid', DDSType.GUID_t),
+]
 
 DDSType.Listener._fields_ = [
     ('listener_data', ctypes.c_void_p),
@@ -423,6 +453,9 @@ map(_define_func, [
     ('DynamicDataReader_take',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicDataReader), ctypes.POINTER(DDSType.DynamicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq), DDS_Long, DDS_SampleStateMask, DDS_ViewStateMask, DDS_InstanceStateMask]),
+    ('DynamicDataReader_take_next_sample',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DynamicDataReader), ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDSType.SampleInfo)]),
     ('DynamicDataReader_return_loan',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicDataReader), ctypes.POINTER(DDSType.DynamicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq)]),
@@ -509,10 +542,6 @@ def write_into_dd(obj, dd):
         assert isinstance(obj, list)
         for i, x in enumerate(obj):
             write_into_dd_member(x, dd, member_id=i+1)
-    # elif kind == TCKind.ENUM:
-    #     assert isinstance(obj, str)
-    #     index = DDS_UnsignedLong
-
     else:
         raise NotImplementedError(kind)
 
@@ -574,8 +603,8 @@ def unpack_dd(dd):
     else:
         raise NotImplementedError(kind)
 
-_outside_refs = set()    # TODO: What do these sets do?
-_refs = set()            # TODO: What do these sets do?
+_outside_refs = set()
+_refs = set()
 
 class TopicSuper(object):
     def __init__(self, dds, name, data_type, related_topic=None, filter_expression=None):
@@ -601,9 +630,12 @@ class TopicSuper(object):
         )
         self._dyn_narrowed_reader = DDSFunc.DynamicDataReader_narrow(self._reader)
 
-        self._callbacks = {}
+        self._data_available_callback = None
+        self._instance_revoked_cb     = None
+        self._liveliness_lost_cb      = None
 
         def cleanup(ref):
+            print("cleaning up topic", name)
             dds._publisher.delete_datawriter(writer)
             dds._subscriber.delete_datareader(reader)
             dds._participant.delete_topic(topic)
@@ -611,6 +643,7 @@ class TopicSuper(object):
             support.delete()
 
             _refs.remove(ref)
+
         _refs.add(weakref.ref(self, cleanup))
 
     def _create_topic(self):
@@ -622,8 +655,8 @@ class TopicSuper(object):
     def _enable_listener(self):
         assert self._listener is None
         self._listener = DDSType.DataReaderListener(
-            on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._data_available_callback),
-            on_liveliness_changed=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader), ctypes.POINTER(DDSType.LivelinessChangedStatus))(self._on_liveliness_changed)
+            on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._on_data_available)
+            # on_liveliness_changed=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader), ctypes.POINTER(DDSType.LivelinessChangedStatus))(self._on_liveliness_changed)
         )
         self._reader.set_listener(self._listener, DATA_AVAILABLE_STATUS)
         _outside_refs.add(self) # really want self._listener, but this does the same thing
@@ -642,20 +675,45 @@ class TopicSuper(object):
 
     def add_data_available_callback(self, cb):
         '''Warning: callback is called back in another thread!'''
-        if not self._callbacks:
+        if not self._data_available_callback:
             self._enable_listener()
-        ref = max(self._callbacks) if self._callbacks else 0
-        self._callbacks[ref] = cb
-        return ref
+        self._data_available_callback = cb
 
     def remove_data_available_callback(self, ref):
-        del self._callbacks[ref]
+        self._data_available_callback = None
         if not self._callbacks:
             self._disable_listener()
 
-    def _data_available_callback(self, listener_data, datareader):
-        for cb in self._callbacks.itervalues():
-            cb()
+    def _on_data_available(self, listener_data, datareader):
+        data_seq = DDSType.DynamicDataSeq()
+        DDSFunc.DynamicDataSeq_initialize(data_seq)
+        info_seq = DDSType.SampleInfoSeq()
+        DDSFunc.SampleInfoSeq_initialize(info_seq)
+        try:
+            self._dyn_narrowed_reader.take(
+                ctypes.byref(data_seq),
+                ctypes.byref(info_seq),
+                DDS_LENGTH_UNLIMITED,
+                get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
+                get('ANY_VIEW_STATE', DDS_ViewStateMask),
+                get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+            )
+
+            for i in xrange(data_seq.get_length()):
+                info = info_seq.get_reference(i).contents
+                if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
+                    if self._instance_revoked_cb: self._instance_revoked_cb()
+                if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
+                    if self._liveliness_lost_cb: self._liveliness_lost_cb()
+                if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
+                    if self._data_available_callback: self._data_available_callback(unpack_dd(data_seq.get_reference(i)))
+
+        except NoDataError:
+            return
+        except Exception, e:
+            raise e
+        finally:
+            self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
     def _generate_instance(self):
         return unpack_dd(self._support.create_data())
@@ -680,7 +738,6 @@ class TopicSuper(object):
         Parameters:
             data (Dict) the data to publish on the bus.
         """
-
         instance = self._generate_instance()
         instance = self._update(instance, data)
         self._send(instance)
@@ -694,24 +751,58 @@ class TopicSuper(object):
         finally:
             self._support.delete_data(sample)
 
-    def _recv(self):
-        data_seq = DDSType.DynamicDataSeq()
-        DDSFunc.DynamicDataSeq_initialize(data_seq)
-        info_seq = DDSType.SampleInfoSeq()
-        DDSFunc.SampleInfoSeq_initialize(info_seq)
-        self._dyn_narrowed_reader.take(
-            ctypes.byref(data_seq),
-            ctypes.byref(info_seq),
-            1,
-            get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
-            get('ANY_VIEW_STATE', DDS_ViewStateMask),
-            get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
-        )
-        try:
-            info = info_seq.get_reference(0)
-            return unpack_dd(data_seq.get_reference(0))
-        finally:
-            self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
+    # def _recv(self):
+
+        # data_seq = DDSType.DynamicDataSeq()
+        # DDSFunc.DynamicDataSeq_initialize(data_seq)
+        # info_seq = DDSType.SampleInfoSeq()
+        # DDSFunc.SampleInfoSeq_initialize(info_seq)
+        # dd = self._support.create_data()   # TODO: does this need to be freed?
+        # info = DDSType.SampleInfo()
+        # try:
+            # self._dyn_narrowed_reader.take_next_sample(
+            #     dd,
+            #     ctypes.byref(info)
+            # )
+            # if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
+            #     print(self.name, "instance revoked ...")
+            #     ## TODO: add in instance revoked callbacks here
+            #     return None
+            # if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
+            #     print(self.name, "liveliness lost ...")
+            #     ## TODO: add in instance revoked callbacks here
+            #     return None
+            # if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
+            #     return unpack_dd(dd)
+        #     self._dyn_narrowed_reader.take(
+        #         ctypes.byref(data_seq),
+        #         ctypes.byref(info_seq),
+        #         DDS_LENGTH_UNLIMITED,
+        #         DDS_NOT_READ_SAMPLE_STATE,
+        #         get('ANY_VIEW_STATE', DDS_ViewStateMask),
+        #         get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+        #     )
+
+        #     info = info_seq.get_reference(0).contents
+        #     print(data_seq.get_length())
+
+        #     if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
+        #         print(self.name, "instance revoked ...")
+        #         ## TODO: add in instance revoked callbacks here
+        #         return None
+        #     if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
+        #         print(self.name, "liveliness lost ...")
+        #         ## TODO: add in instance revoked callbacks here
+        #         return None
+        #     if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
+        #         return unpack_dd(data_seq.get_reference(0))
+
+        # except NoDataError:
+        #     return None
+        # except Exception, e:
+        #     raise e
+        # finally:
+        #     self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
 class FilteredTopic(TopicSuper):
     def __init__(self, dds, name, data_type, related_topic, filter_expression):
@@ -759,31 +850,48 @@ class Topic(TopicSuper):
             0,
         )
 
-    def subscribe(self, callback, filter_expression=None):
+
+    def subscribe(self, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None, filter_expression=None):
 
         """
         Makes a DDS subcription for this topic with the provided callback.
-        If desired, a filter expression [1] can be specified and only topics
-        matching the filter will be returned.
+        Optionally, 'instance revoked' and 'liveliness lost' callbacks may also
+        be provided. If desired, a filter expression [1] can be specified and only topics
+        matching the filter will be passed to the callback.
 
         NOTE: currently filter parameters are not supported. Only provide filters
               without parameters!
 
         Parameters:
-            callback          (function) this function will be called with a dictionary
-                                         containing the topic (name:value) pairs
+            data_available_callback  (function) Required. This function will be called with a
+                                                dictionary containing the topic (name:value) pairs
 
-            filter_expression (String)   The optional filter expression
+            instance_revoked_cb      (function) Optional. This function will be called with a
+                                                dictionary containing the topic (name:value) pairs
+
+            liveliness_lost_cb       (function) Optional. This function will be called with a
+                                                dictionary containing the topic (name:value) pairs
+
+            filter_expression        (String)   Optional. The filter expression
 
         [1] https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm
         """
 
         if filter_expression:
             filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression)
-            filtered_topic.add_data_available_callback(lambda: callback(filtered_topic._recv()))
+            filtered_topic._instance_revoked_cb = instance_revoked_cb
+            filtered_topic._liveliness_lost_cb  = liveliness_lost_cb
+            filtered_topic.add_data_available_callback(data_available_callback)
             self._filtered_topics[filtered_topic.filter_name] = filtered_topic
         else:
-            self.add_data_available_callback(lambda: callback(self._recv()))
+            self._instance_revoked_cb = instance_revoked_cb
+            self._liveliness_lost_cb  = liveliness_lost_cb
+            self.add_data_available_callback(data_available_callback)
+
+
+    def dispose(self):
+        raise NotImplementedError()
+
 
 class DDS(object):
     def __init__(self, library=None, profile=None, domain_id=0):
@@ -810,6 +918,7 @@ class DDS(object):
         self._open_topics = weakref.WeakValueDictionary()
 
         def cleanup(ref):
+            print("cleaning up DDS")
             participant.delete_subscriber(subscriber)
             participant.delete_publisher(publisher)
 
@@ -835,7 +944,8 @@ class LibraryType(object):
         self._lib, self.name = lib, name
         del lib, name
 
-        tc = self._get_typecode()
+        # tc = self._get_typecode()
+
         assert self._get_typecode().name(ex()).replace('::', '_') == self.name.replace('::', '_')
 
     def _get_typecode(self):
