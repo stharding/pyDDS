@@ -71,17 +71,12 @@ class Error(Exception):
 class NoDataError(Exception):
     pass
 
-def check_take(result, func, arguments):
-    print("---------- Begin 'take' function results ----------")
-    print("res:", result)
-    print("args:", arguments)
-    print("---------- End 'take' function results ----------")
-    return result
 
 def check_code(result, func, arguments):
     if result == 11:
         raise NoDataError()
     if result != 0:
+        # raise Error(str(result))
         raise Error({
             1:  'error',
             2:  'unsupported',
@@ -337,13 +332,15 @@ map(_define_func, [
     ('DomainParticipant_create_topic',
         check_null, ctypes.POINTER(DDSType.Topic),
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.c_char_p, ctypes.POINTER(DDSType.TopicQos), ctypes.POINTER(DDSType.TopicListener), DDS_StatusMask]),
-    ('DomainParticipant_create_contentfilteredtopic',
-        check_null, ctypes.POINTER(DDSType.ContentFilteredTopic),
-        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.POINTER(DDSType.Topic), ctypes.c_char_p, ctypes.POINTER(DDSType.StringSeq)]),
     ('DomainParticipant_delete_topic',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.Topic)]),
-
+    ('DomainParticipant_create_contentfilteredtopic',
+        check_null, ctypes.POINTER(DDSType.ContentFilteredTopic),
+        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.c_char_p, ctypes.POINTER(DDSType.Topic), ctypes.c_char_p, ctypes.POINTER(DDSType.StringSeq)]),
+    ('DomainParticipant_delete_contentfilteredtopic',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.ContentFilteredTopic)]),
     ('Publisher_create_datawriter',
         check_null, ctypes.POINTER(DDSType.DataWriter),
         [ctypes.POINTER(DDSType.Publisher), ctypes.POINTER(DDSType.Topic), ctypes.POINTER(DDSType.DataWriterQos), ctypes.POINTER(DDSType.DataWriterListener), DDS_StatusMask]),
@@ -600,6 +597,7 @@ def unpack_dd(dd):
 
 _outside_refs = set()
 _refs = set()
+_filtered_topic_refs = {}
 
 class TopicSuper(object):
     def __init__(self, dds, name, data_type, related_topic=None, filter_expression=None):
@@ -612,7 +610,7 @@ class TopicSuper(object):
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
         self._support.register_type(self._dds._participant, self.data_type._get_typecode().name(ex()))
 
-        self._topic = topic       = self._create_topic()
+        self._topic  = topic      = self._create_topic()
         self._writer = writer     = self._create_writer()
         self._dyn_narrowed_writer = DDSFunc.DynamicDataWriter_narrow(self._writer)
         self._listener            = None
@@ -629,14 +627,21 @@ class TopicSuper(object):
         self._instance_revoked_cb     = None
         self._liveliness_lost_cb      = None
 
-        def cleanup(ref):
-            dds._publisher.delete_datawriter(writer)
-            dds._subscriber.delete_datareader(reader)
-            dds._participant.delete_topic(topic)
-            support.unregister_type(dds._participant, data_type._get_typecode().name(ex()))
-            support.delete()
+        if not _filtered_topic_refs.has_key(name): _filtered_topic_refs[name] = []
 
-            _refs.remove(ref)
+        def cleanup(ref):
+            if not filter_expression:
+                dds._publisher.delete_datawriter(writer)
+                dds._subscriber.delete_datareader(reader)
+                for ft in _filtered_topic_refs[name]:
+                    dds._publisher.delete_datawriter(ft._writer)
+                    dds._subscriber.delete_datareader(ft._reader)
+                    dds._participant.delete_contentfilteredtopic(ft._topic)
+                dds._participant.delete_topic(topic)
+                support.unregister_type(dds._participant, data_type._get_typecode().name(ex()))
+                support.delete()
+                del _filtered_topic_refs[name]
+                _refs.remove(ref)
 
         _refs.add(weakref.ref(self, cleanup))
 
@@ -840,6 +845,7 @@ class Topic(TopicSuper):
             filtered_topic._liveliness_lost_cb  = liveliness_lost_cb
             filtered_topic.add_data_available_callback(data_available_callback)
             self._filtered_topics[filtered_topic.filter_name] = filtered_topic
+            _filtered_topic_refs[self.name].append(filtered_topic)
             return filtered_topic
         else:
             self._instance_revoked_cb = instance_revoked_cb
