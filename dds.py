@@ -446,6 +446,10 @@ map(_define_func, [
     ('DynamicDataWriter_write',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DynamicDataWriter), ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
+    ('DynamicDataWriter_dispose',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DynamicDataWriter), ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
+
 
     ('DynamicDataReader_narrow',
         check_null, ctypes.POINTER(DDSType.DynamicDataReader),
@@ -738,8 +742,8 @@ class TopicSuper(object):
         Parameters:
             data (Dict) the data to publish on the bus.
         """
-        instance = self._generate_instance()
-        instance = self._update(instance, data)
+
+        instance = self._update(self._generate_instance(), data)
         self._send(instance)
 
     def _send(self, msg):
@@ -750,59 +754,6 @@ class TopicSuper(object):
             self._dyn_narrowed_writer.write(sample, DDS_HANDLE_NIL)
         finally:
             self._support.delete_data(sample)
-
-    # def _recv(self):
-
-        # data_seq = DDSType.DynamicDataSeq()
-        # DDSFunc.DynamicDataSeq_initialize(data_seq)
-        # info_seq = DDSType.SampleInfoSeq()
-        # DDSFunc.SampleInfoSeq_initialize(info_seq)
-        # dd = self._support.create_data()   # TODO: does this need to be freed?
-        # info = DDSType.SampleInfo()
-        # try:
-            # self._dyn_narrowed_reader.take_next_sample(
-            #     dd,
-            #     ctypes.byref(info)
-            # )
-            # if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
-            #     print(self.name, "instance revoked ...")
-            #     ## TODO: add in instance revoked callbacks here
-            #     return None
-            # if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
-            #     print(self.name, "liveliness lost ...")
-            #     ## TODO: add in instance revoked callbacks here
-            #     return None
-            # if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
-            #     return unpack_dd(dd)
-        #     self._dyn_narrowed_reader.take(
-        #         ctypes.byref(data_seq),
-        #         ctypes.byref(info_seq),
-        #         DDS_LENGTH_UNLIMITED,
-        #         DDS_NOT_READ_SAMPLE_STATE,
-        #         get('ANY_VIEW_STATE', DDS_ViewStateMask),
-        #         get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
-        #     )
-
-        #     info = info_seq.get_reference(0).contents
-        #     print(data_seq.get_length())
-
-        #     if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
-        #         print(self.name, "instance revoked ...")
-        #         ## TODO: add in instance revoked callbacks here
-        #         return None
-        #     if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
-        #         print(self.name, "liveliness lost ...")
-        #         ## TODO: add in instance revoked callbacks here
-        #         return None
-        #     if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
-        #         return unpack_dd(data_seq.get_reference(0))
-
-        # except NoDataError:
-        #     return None
-        # except Exception, e:
-        #     raise e
-        # finally:
-        #     self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
 class FilteredTopic(TopicSuper):
     def __init__(self, dds, name, data_type, related_topic, filter_expression):
@@ -889,8 +840,25 @@ class Topic(TopicSuper):
             self.add_data_available_callback(data_available_callback)
 
 
-    def dispose(self):
-        raise NotImplementedError()
+    def dispose(self, data):
+
+        """
+        Disposes a message instance. The provided message must have the 'key'
+        fields set to the desired values. All topics of this type with matching
+        keys will be disposed.
+
+        Parameters:
+            data (Dict) The provided message.
+        """
+
+        instance = self._update(self._generate_instance(), data)
+        sample   = self._support.create_data()
+
+        try:
+            write_into_dd(instance, sample)
+            self._dyn_narrowed_writer.dispose(sample, DDS_HANDLE_NIL)
+        finally:
+            self._support.delete_data(sample)
 
 
 class DDS(object):
