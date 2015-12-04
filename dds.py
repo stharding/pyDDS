@@ -39,8 +39,10 @@ DDS_Enum             = DDS_UnsignedLong
 DDS_DynamicDataMemberId = DDS_Long
 DDS_ReturnCode_t        = enum
 DDS_ExceptionCode_t     = enum
+
 def ex():
     return ctypes.byref(DDS_ExceptionCode_t())
+
 DDS_DomainId_t = ctypes.c_int32
 DDS_TCKind = enum
 
@@ -53,13 +55,14 @@ DDS_SampleStateKind   = DDS_Long
 DDS_ViewStateKind     = DDS_Long
 DDS_InstanceStateKind = DDS_Long
 
-DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED = 0
-
 DDS_LENGTH_UNLIMITED      = DDS_Long(-1)
 DDS_NOT_READ_SAMPLE_STATE = 2
 DDS_ALIVE_INSTANCE_STATE  = 1
 DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE   = 2
 DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE = 4
+
+DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED = 0
+
 # Error checkers
 
 class Error(Exception):
@@ -152,19 +155,6 @@ DDSType.Time_t._fields_ = [
     ('nanosec', DDS_UnsignedLong),
 ]
 
-DDSType.StringSeq._fields_ = [
-    ('_owned', DDS_Boolean),
-    ('_contiguous_buffer', ctypes.POINTER(ctypes.POINTER(ctypes.c_char))),
-    ('_discontiguous_buffer', ctypes.POINTER(ctypes.POINTER(ctypes.POINTER(ctypes.c_char)))),
-    ('_maximum', DDS_UnsignedLong),
-    ('_length', DDS_UnsignedLong),
-    ('_sequence_init', DDS_Long),
-    ('_read_token1', ctypes.c_void_p),
-    ('_read_token2', ctypes.c_void_p),
-    ('_elementAllocParams', DDSType.SeqElementTypeAllocationParams_t),
-    ('_elementDeallocParams', DDSType.SeqElementTypeDeallocationParams_t),
-]
-
 DDSType.Topic._fields_ = [
     ('_as_Entity', ctypes.c_void_p),
     ('_as_TopicDescription', ctypes.POINTER(DDSType.TopicDescription)),
@@ -181,7 +171,7 @@ DDSType.ContentFilteredTopic._fields_ = [
 ctypes.POINTER(DDSType.Topic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 ctypes.POINTER(DDSType.ContentFilteredTopic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 
-DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = [
+DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = DDSType.StringSeq._fields_ = [
     ('_owned', ctypes.c_bool),
     ('_contiguous_buffer', ctypes.c_void_p),
     ('_discontiguous_buffer', ctypes.c_void_p),
@@ -190,7 +180,8 @@ DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = [
     ('_sequence_init', ctypes.c_long),
     ('_read_token1', ctypes.c_void_p),
     ('_read_token2', ctypes.c_void_p),
-    ('_elementPointersAllocation', ctypes.c_bool),
+    ('_elementAllocParams', DDSType.SeqElementTypeAllocationParams_t),
+    ('_elementDeallocParams', DDSType.SeqElementTypeDeallocationParams_t),
 ]
 
 DDSType.InstanceHandle_t._fields_ = [
@@ -639,7 +630,6 @@ class TopicSuper(object):
         self._liveliness_lost_cb      = None
 
         def cleanup(ref):
-            print("cleaning up topic", name)
             dds._publisher.delete_datawriter(writer)
             dds._subscriber.delete_datareader(reader)
             dds._participant.delete_topic(topic)
@@ -683,10 +673,20 @@ class TopicSuper(object):
             self._enable_listener()
         self._data_available_callback = cb
 
-    def remove_data_available_callback(self, ref):
-        self._data_available_callback = None
-        if not self._callbacks:
-            self._disable_listener()
+    def unsubscribe(self, topic):
+
+        """
+        Cancels a subscription made with `subscribe' with a given topic.
+
+        Parameters:
+            topic (Topic or ContentFilteredTopic) the topic to cancel the
+                                                  subscription on. This value
+                                                  is returned by `subscribe'
+        """
+
+        topic._data_available_callback = None
+        if topic._listener:
+            topic._disable_listener()
 
     def _on_data_available(self, listener_data, datareader):
         data_seq = DDSType.DynamicDataSeq()
@@ -737,7 +737,7 @@ class TopicSuper(object):
         Publishes an instance of this topic on the DDS bus with the provided data.
         The input data may be sparse, but every entry in the data must be a field
         in the topic. If the provided data is sparse, a full instance of the topic
-        will be published and the non-specified fields will recieve default values.
+        will be published and the non-specified fields will receive default values.
 
         Parameters:
             data (Dict) the data to publish on the bus.
@@ -805,10 +805,13 @@ class Topic(TopicSuper):
     def subscribe(self, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None, filter_expression=None):
 
         """
-        Makes a DDS subcription for this topic with the provided callback.
+        Makes a DDS subscription for this topic with the provided callback.
         Optionally, 'instance revoked' and 'liveliness lost' callbacks may also
         be provided. If desired, a filter expression [1] can be specified and only topics
         matching the filter will be passed to the callback.
+
+        To cancel a subscription, you call `unsubscribe' with a `topic' argument. This
+        method returns the topic instance for this purpose.
 
         NOTE: currently filter parameters are not supported. Only provide filters
               without parameters!
@@ -825,6 +828,9 @@ class Topic(TopicSuper):
 
             filter_expression        (String)   Optional. The filter expression
 
+        Returns:
+            topic (Topic or ContentFilteredTopic) The topic to pass to `unsubscribe' if desired.
+
         [1] https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm
         """
 
@@ -834,11 +840,12 @@ class Topic(TopicSuper):
             filtered_topic._liveliness_lost_cb  = liveliness_lost_cb
             filtered_topic.add_data_available_callback(data_available_callback)
             self._filtered_topics[filtered_topic.filter_name] = filtered_topic
+            return filtered_topic
         else:
             self._instance_revoked_cb = instance_revoked_cb
             self._liveliness_lost_cb  = liveliness_lost_cb
             self.add_data_available_callback(data_available_callback)
-
+            return self
 
     def dispose(self, data):
 
@@ -886,7 +893,6 @@ class DDS(object):
         self._open_topics = weakref.WeakValueDictionary()
 
         def cleanup(ref):
-            print("cleaning up DDS")
             participant.delete_subscriber(subscriber)
             participant.delete_publisher(publisher)
 
@@ -911,8 +917,6 @@ class LibraryType(object):
     def __init__(self, lib, name):
         self._lib, self.name = lib, name
         del lib, name
-
-        # tc = self._get_typecode()
 
         assert self._get_typecode().name(ex()).replace('::', '_') == self.name.replace('::', '_')
 
