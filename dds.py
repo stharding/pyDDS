@@ -630,7 +630,7 @@ class TopicSuper(object):
         if not _filtered_topic_refs.has_key(name): _filtered_topic_refs[name] = []
 
         def cleanup(ref):
-            if not filter_expression:
+            if type(topic) is ctypes.POINTER(DDSType.Topic):
                 dds._publisher.delete_datawriter(writer)
                 dds._subscriber.delete_datareader(reader)
                 for ft in _filtered_topic_refs[name]:
