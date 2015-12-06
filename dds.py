@@ -166,7 +166,10 @@ DDSType.ContentFilteredTopic._fields_ = [
 ctypes.POINTER(DDSType.Topic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 ctypes.POINTER(DDSType.ContentFilteredTopic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 
-DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = DDSType.StringSeq._fields_ = [
+DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = DDSType.StringSeq._fields_ = \
+                                  DDSType.OctetSeq._fields_ = DDSType.TransportUnicastSettingsSeq._fields_  = \
+                                  DDSType.LongSeq._fields_ = DDSType.PropertySeq._fields_ = \
+                                  DDSType.TransportMulticastMappingSeq._fields_ = [
     ('_owned', ctypes.c_bool),
     ('_contiguous_buffer', ctypes.c_void_p),
     ('_discontiguous_buffer', ctypes.c_void_p),
@@ -233,6 +236,309 @@ DDSType.LivelinessChangedStatus._fields_ = [
     ('alive_count_change', DDS_Long),
     ('not_alive_count_change', DDS_Long),
     ('last_publication_handle', DDSType.InstanceHandle_t),
+]
+
+DDSType.Duration_t._fields_ = [
+    ('sec', DDS_Long),
+    ('nanosec', DDS_Long),
+]
+
+DDSType.ThreadSettings_t._fields_ = [
+    ('mask', DDS_UnsignedLong),
+    ('priority', DDS_Long),
+    ('stack_size', DDS_Long),
+    ('cpu_list', DDSType.LongSeq),
+    ('cpu_rotation', enum),
+]
+
+DDSType.RtpsReliableReaderProtocol_t._fields_ = [
+    ('min_heartbeat_response_delay', DDSType.DDS_Duration_t),
+    ('max_heartbeat_response_delay', DDSType.DDS_Duration_t),
+    ('heartbeat_suppression_duration', DDSType.DDS_Duration_t),
+    ('nack_period', DDSType.DDS_Duration_t),
+    ('receive_window_size', DDS_Long),
+    ('round_trip_time', DDSType.DDS_Duration_t),
+    ('app_ack_period', DDSType.DDS_Duration_t),
+    ('min_app_ack_response_keep_duration', DDSType.DDS_Duration_t),
+    ('samples_per_app_ack', DDS_Long),
+]
+
+DDSType.BuiltinTopicReaderResourceLimits_t._fields_ = [
+    ('initial_samples', DDS_Long),
+    ('max_samples', DDS_Long),
+    ('initial_infos', DDS_Long),
+    ('max_infos', DDS_Long),
+    ('initial_outstanding_reads', DDS_Long),
+    ('max_outstanding_reads', DDS_Long),
+    ('max_samples_per_read', DDS_Long),
+    ('disable_fragmentation_support', DDS_Boolean),
+    ('max_fragmented_samples', DDS_Long),
+    ('initial_fragmented_samples', DDS_Long),
+    ('max_fragmented_samples_per_remote_writer', DDS_Long),
+    ('max_fragments_per_sample', DDS_Long),
+    ('dynamically_allocate_fragmented_samples', DDS_Boolean),
+]
+
+DDSType.RtpsReliableWriterProtocol_t._fields_ = [
+    ('low_watermark', DDS_Long),
+    ('high_watermark', DDS_Long),
+    ('heartbeat_period', DDSType.DDS_Duration_t),
+    ('fast_heartbeat_period', DDSType.DDS_Duration_t),
+    ('late_joiner_heartbeat_period', DDSType.DDS_Duration_t),
+    ('virtual_heartbeat_period', DDSType.DDS_Duration_t),
+    ('samples_per_virtual_heartbeat', DDS_Long),
+    ('max_heartbeat_retries', DDS_Long),
+    ('inactivate_nonprogressing_readers', DDS_Boolean),
+    ('heartbeats_per_max_samples', DDS_Long),
+    ('min_nack_response_delay', DDSType.DDS_Duration_t),
+    ('max_nack_response_delay', DDSType.DDS_Duration_t),
+    ('nack_suppression_duration', DDSType.DDS_Duration_t),
+    ('max_bytes_per_nack_response', DDS_Long),
+    ('disable_positive_acks_min_sample_keep_duration', DDSType.DDS_Duration_t),
+    ('disable_positive_acks_max_sample_keep_duration', DDSType.DDS_Duration_t),
+    ('disable_positive_acks_enable_adaptive_sample_keep_duration', DDS_Boolean),
+    ('disable_positive_acks_decrease_sample_keep_duration_factor', DDS_Long),
+    ('disable_positive_acks_increase_sample_keep_duration_factor', DDS_Long),
+    ('min_send_window_size', DDS_Long),
+    ('max_send_window_size', DDS_Long),
+    ('send_window_update_period', DDSType.DDS_Duration_t),
+    ('send_window_increase_factor', DDS_Long),
+    ('send_window_decrease_factor', DDS_Long),
+    ('enable_multicast_periodic_heartbeat', DDS_Boolean),
+    ('multicast_resend_threshold', DDS_Long),
+]
+
+DDSType.WriterDataLifecycleQosPolicy._fields_ = [
+    ('autodispose_unregistered_instances', DDS_Boolean),
+    ('autopurge_unregistered_instances_delay', DDSType.DDS_Duration_t),
+    ('autopurge_disposed_instances_delay', DDSType.DDS_Duration_t),
+]
+
+DDSType.PublishModeQosPolicy._fields_ = [
+    ('kind', enum),
+    ('flow_controller_name', ctypes.c_char_p),
+    ('priority', DDS_Long),
+]
+
+DDSType.AsynchronousPublisherQosPolicy._fields_ = [
+    ('disable_asynchronous_write', DDS_Boolean),
+    ('thread', DDSType.ThreadSettings_t),
+    ('disable_asynchronous_batch', DDS_Boolean),
+    ('asynchronous_batch_thread', DDSType.ThreadSettings_t),
+]
+
+DDSType.DiscoveryConfigQosPolicy._fields_ = [
+    ('participant_liveliness_lease_duration', DDSType.Duration_t),
+    ('participant_liveliness_assert_period', DDSType.Duration_t),
+    ('remote_participant_purge_kind', enum),
+    ('max_liveliness_loss_detection_period', DDSType.Duration_t),
+    ('initial_participant_announcements', DDS_Long),
+    ('min_initial_participant_announcement_period', DDSType.Duration_t),
+    ('max_initial_participant_announcement_period', DDSType.Duration_t),
+    ('participant_reader_resource_limits', DDSType.BuiltinTopicReaderResourceLimits_t),
+    ('publication_reader', DDSType.RtpsReliableReaderProtocol_t),
+    ('publication_reader_resource_limits', DDSType.BuiltinTopicReaderResourceLimits_t),
+    ('subscription_reader', DDSType.RtpsReliableReaderProtocol_t),
+    ('subscription_reader_resource_limits', DDSType.BuiltinTopicReaderResourceLimits_t),
+    ('publication_writer', DDSType.RtpsReliableWriterProtocol_t),
+    ('publication_writer_data_lifecycle', DDSType.WriterDataLifecycleQosPolicy),
+    ('subscription_writer', DDSType.RtpsReliableWriterProtocol_t),
+    ('subscription_writer_data_lifecycle', DDSType.WriterDataLifecycleQosPolicy),
+    ('builtin_discovery_plugins', DDS_Long),
+    ('participant_message_reader_reliability_kind', enum),
+    ('participant_message_reader', DDSType.RtpsReliableReaderProtocol_t),
+    ('participant_message_writer', DDSType.RtpsReliableWriterProtocol_t),
+    ('publication_writer_publish_mode', DDSType.PublishModeQosPolicy),
+    ('subscription_writer_publish_mode', DDSType.PublishModeQosPolicy),
+    ('asynchronous_publisher', DDSType.AsynchronousPublisherQosPolicy),
+    ('default_domain_announcement_period', DDSType.Duration_t),
+    ('ignore_default_domain_announcements', DDS_Boolean),
+]
+
+DDSType.DatabaseQosPolicy._fields_ = [
+    ('thread', DDSType.ThreadSettings_t),
+    ('shutdown_timeout', DDSType.Duration_t),
+    ('cleanup_period', DDSType.Duration_t),
+    ('shutdown_cleanup_period', DDSType.Duration_t),
+    ('initial_records', DDS_Long),
+    ('max_skiplist_level', DDS_Long),
+    ('max_weak_references', DDS_Long),
+    ('initial_weak_references', DDS_Long),
+]
+
+DDSType.ReceiverPoolQosPolicy._fields_ = [
+    ('thread', DDSType.ThreadSettings_t),
+    ('buffer_size', DDS_Long),
+    ('buffer_alignment', DDS_Long),
+]
+
+DDSType.EventQosPolicy._fields_ = [
+    ('thread', DDSType.ThreadSettings_t),
+    ('initial_count', DDS_Long),
+    ('max_count', DDS_Long),
+]
+
+DDSType.AllocationSettings_t._fields_ = [
+    ('initial_count', DDS_Long),
+    ('max_count', DDS_Long),
+    ('incremental_count', DDS_Long),
+]
+
+DDSType.DomainParticipantResourceLimitsQosPolicy._fields_ = [
+    ('local_writer_allocation', DDSType.AllocationSettings_t),
+    ('local_reader_allocation', DDSType.AllocationSettings_t),
+    ('local_publisher_allocation', DDSType.AllocationSettings_t),
+    ('local_subscriber_allocation', DDSType.AllocationSettings_t),
+    ('local_topic_allocation', DDSType.AllocationSettings_t),
+    ('remote_writer_allocation', DDSType.AllocationSettings_t),
+    ('remote_reader_allocation', DDSType.AllocationSettings_t),
+    ('remote_participant_allocation', DDSType.AllocationSettings_t),
+    ('matching_writer_reader_pair_allocation', DDSType.AllocationSettings_t),
+    ('matching_reader_writer_pair_allocation', DDSType.AllocationSettings_t),
+    ('ignored_entity_allocation', DDSType.AllocationSettings_t),
+    ('content_filtered_topic_allocation', DDSType.AllocationSettings_t),
+    ('content_filter_allocation', DDSType.AllocationSettings_t),
+    ('read_condition_allocation', DDSType.AllocationSettings_t),
+    ('query_condition_allocation', DDSType.AllocationSettings_t),
+    ('outstanding_asynchronous_sample_allocation', DDSType.AllocationSettings_t),
+    ('flow_controller_allocation', DDSType.AllocationSettings_t),
+    ('local_writer_hash_buckets', DDS_Long),
+    ('local_reader_hash_buckets', DDS_Long),
+    ('local_publisher_hash_buckets', DDS_Long),
+    ('local_subscriber_hash_buckets', DDS_Long),
+    ('local_topic_hash_buckets', DDS_Long),
+    ('remote_writer_hash_buckets', DDS_Long),
+    ('remote_reader_hash_buckets', DDS_Long),
+    ('remote_participant_hash_buckets', DDS_Long),
+    ('matching_writer_reader_pair_hash_buckets', DDS_Long),
+    ('matching_reader_writer_pair_hash_buckets', DDS_Long),
+    ('ignored_entity_hash_buckets', DDS_Long),
+    ('content_filtered_topic_hash_buckets', DDS_Long),
+    ('content_filter_hash_buckets', DDS_Long),
+    ('flow_controller_hash_buckets', DDS_Long),
+    ('max_gather_destinations', DDS_Long),
+    ('participant_user_data_max_length', DDS_Long),
+    ('topic_data_max_length', DDS_Long),
+    ('publisher_group_data_max_length', DDS_Long),
+    ('subscriber_group_data_max_length', DDS_Long),
+    ('writer_user_data_max_length', DDS_Long),
+    ('reader_user_data_max_length', DDS_Long),
+    ('max_partitions', DDS_Long),
+    ('max_partition_cumulative_characters', DDS_Long),
+    ('type_code_max_serialized_length', DDS_Long),
+    ('type_object_max_serialized_length', DDS_Long),
+    ('type_object_max_deserialized_length', DDS_Long),
+    ('deserialized_type_object_dynamic_allocation_threshold', DDS_Long),
+    ('contentfilter_property_max_length', DDS_Long),
+    ('channel_seq_max_length', DDS_Long),
+    ('channel_filter_expression_max_length', DDS_Long),
+    ('participant_property_list_max_length', DDS_Long),
+    ('participant_property_string_max_length', DDS_Long),
+    ('writer_property_list_max_length', DDS_Long),
+    ('writer_property_string_max_length', DDS_Long),
+    ('reader_property_list_max_length', DDS_Long),
+    ('reader_property_string_max_length', DDS_Long),
+    ('max_endpoint_groups', DDS_Long),
+    ('max_endpoint_group_cumulative_characters', DDS_Long),
+    ('transport_info_list_max_length', DDS_Long),
+    ('ignored_entity_replacement_kind', ctypes.c_char_p),
+]
+
+DDSType.DiscoveryQosPolicy._fields_ = [
+    ('enabled_transports', DDSType.StringSeq),
+    ('initial_peers', DDSType.StringSeq),
+    ('multicast_receive_addresses', DDSType.StringSeq),
+    ('metatraffic_transport_priority', DDS_Long),
+    ('accept_unknown_peers', DDS_Boolean),
+    ('enable_endpoint_discovery', DDS_Boolean),
+]
+
+DDSType.TransportUnicastQosPolicy._fields_ = [
+    ('value', DDSType.TransportUnicastSettingsSeq)
+]
+
+DDSType.TransportBuiltinQosPolicy._fields_ = [
+    ('mask', DDS_Long),
+]
+
+DDSType.WireProtocolQosPolicy._fields_ = [
+    ('participant_id', DDS_Long),
+    ('rtps_host_id', DDS_UnsignedLong),
+    ('rtps_app_id', DDS_UnsignedLong),
+    ('rtps_instance_id', DDS_UnsignedLong),
+    ('rtps_well_known_ports', DDSType.RtpsWellKnownPorts_t), ####
+    ('rtps_reserved_port_mask', DDS_Long),
+    ('rtps_auto_id_kind', enum),
+]
+
+DDSType.EntityFactoryQosPolicy._fields_ = [
+    ('autoenable_created_entities', DDS_Boolean),
+]
+
+DDSType.UserDataQosPolicy._fields_ = [
+    ('value', DDSType.OctetSeq),
+]
+
+DDSType.EntityNameQosPolicy._fields_ = [
+    ('name', ctypes.c_char_p),
+    ('role_name', ctypes.c_char_p),
+]
+
+DDSType.PropertyQosPolicy._fields_ =[
+    ('value', DDSType.PropertySeq),
+]
+
+DDSType.TransportMulticastMappingQosPolicy._fields_ = [
+    ('value', DDSType.TransportMulticastMappingSeq),
+]
+
+DDSType.TypeSupportQosPolicy._fields_ = [
+    ('plugin_data', ctypes.c_void_p),
+    ('cdr_padding_kind', enum),
+]
+
+DDSType.ProfileQosPolicy._fields_ = [
+    ('string_profile', DDSType.StringSeq),
+    ('url_profile', DDSType.StringSeq),
+    ('ignore_user_profile', DDS_Boolean),
+    ('ignore_environment_profile', DDS_Boolean),
+    ('ignore_resource_profile', DDS_Boolean),
+]
+
+DDSType.SystemResourceLimitsQosPolicy._fields_ = [
+    ('max_objects_per_thread', DDS_Long),
+]
+
+DDSType.LoggingQosPolicy._fields_ = [
+    ('verbosity', enum),
+    ('category', enum),
+    ('print_format', enum),
+    ('output_file', ctypes.c_char_p),
+]
+
+DDSType.DomainParticipantFactoryQos._fields_ = [
+    ('entity_factory', DDSType.EntityFactoryQosPolicy),
+    ('resource_limits', DDSType.SystemResourceLimitsQosPolicy),
+    ('profile', DDSType.ProfileQosPolicy),
+    ('logging', DDSType.LoggingQosPolicy),
+]
+
+DDSType.DomainParticipantQos._fields_ = [
+    ('user_data', DDSType.UserDataQosPolicy),
+    ('entity_factory', DDSType.EntityFactoryQosPolicy),
+    ('wire_protocol', DDSType.WireProtocolQosPolicy),
+    ('transport_builtin', DDSType.TransportBuiltinQosPolicy),
+    ('default_unicast', DDSType.TransportUnicastQosPolicy),
+    ('discovery', DDSType.DiscoveryQosPolicy),
+    ('resource_limits', DDSType.DomainParticipantResourceLimitsQosPolicy),
+    ('event', DDSType.EventQosPolicy),
+    ('receiver_pool', DDSType.ReceiverPoolQosPolicy),
+    ('database', DDSType.DatabaseQosPolicy),
+    ('discovery_config', DDSType.DiscoveryConfigQosPolicy),
+    ('property', DDSType.PropertyQosPolicy),
+    ('participant_name', DDSType.EntityNameQosPolicy),
+    ('multicast_mapping', DDSType.TransportMulticastMappingQosPolicy),
+    ('type_support', DDSType.TypeSupportQosPolicy),
 ]
 
 class TCKind(object):
@@ -304,13 +610,25 @@ map(_define_func, [
     ('DomainParticipantFactory_delete_participant',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.POINTER(DDSType.DomainParticipant)]),
+    ('DomainParticipantFactory_get_default_participant_qos',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.POINTER(DDSType.DomainParticipantQos)]),
+
+    ('DomainParticipantQos_initialize',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipantQos)]),
+    ('DomainParticipantQos_finalize',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipantQos)]),
+    ('DomainParticipant_set_qos',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.DomainParticipantQos)]),
     ('DomainParticipant_set_default_library',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p]),
     ('DomainParticipant_set_default_profile',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p, ctypes.c_char_p]),
-
     ('DomainParticipant_create_publisher',
         check_null, ctypes.POINTER(DDSType.Publisher),
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.PublisherQos), ctypes.POINTER(DDSType.PublisherListener), DDS_StatusMask]),
@@ -875,9 +1193,18 @@ class Topic(TopicSuper):
 
 
 class DDS(object):
-    def __init__(self, library=None, profile=None, domain_id=0):
+    def __init__(self, library=None, profile=None, domain_id=0, participant_name=None):
         if library and profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(library, profile)
+
+        if participant_name and type(participant_name) is str:
+            self.pqos = DDSType.DomainParticipantQos()
+            self.pqos.initialize()
+            DDSFunc.DomainParticipantFactory_get_instance().get_default_participant_qos(ctypes.byref(self.pqos))
+            self.pqos.participant_name.name = participant_name
+
+            print("set the participant name to", participant_name)
+
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
             domain_id,
             get('PARTICIPANT_QOS_DEFAULT', DDSType.DomainParticipantQos),
@@ -896,7 +1223,10 @@ class DDS(object):
             None,
             0,
         )
+        # self._participant.set_qos(pqos)
+        # pqos.finalize()
         self._open_topics = weakref.WeakValueDictionary()
+
 
         def cleanup(ref):
             participant.delete_subscriber(subscriber)
