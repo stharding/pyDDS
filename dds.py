@@ -9,14 +9,18 @@ import json
 import collections
 import uuid
 import exceptions
-import traceback
+import platform
 
-# arch_str = 'x64Darwin14clang6.0'
+def libname(name):
+    if platform.uname()[0] == 'Windows':
+        return 'lib' + name + '.dll'
+    elif platform.uname()[0] == 'Darwin':
+        return 'lib' + name + '.dylib'
+    else:
+        return 'lib' + name + '.so'
 
-# arch_str = 'x64Linux2.6gcc4.1.1' if sys.maxsize > 2**32 else 'i86Linux2.6gcc4.1.1'  ## this sys.maxsize trick only indicates that the python executable is 64 or 32 bit.
-# os.chdir(os.path.join(os.environ['NDDSHOME'], 'lib', arch_str))
-_ddscore_lib = ctypes.CDLL('libnddscore.dylib', ctypes.RTLD_GLOBAL)
-_ddsc_lib = ctypes.CDLL('libnddsc.dylib')
+_ddscore_lib = ctypes.CDLL(libname('nddscore'), ctypes.RTLD_GLOBAL)
+_ddsc_lib = ctypes.CDLL(libname('nddsc'))
 
 # some types
 enum = ctypes.c_int
@@ -875,9 +879,9 @@ class Topic(TopicSuper):
 
 
 class DDS(object):
-    def __init__(self, library=None, profile=None, domain_id=0):
-        if library and profile:
-            DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(library, profile)
+    def __init__(self, topic_library, qos_library=None, qos_profile=None, domain_id=0):
+        if qos_library and qos_profile:
+            DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
             domain_id,
             get('PARTICIPANT_QOS_DEFAULT', DDSType.DomainParticipantQos),
@@ -897,6 +901,7 @@ class DDS(object):
             0,
         )
         self._open_topics = weakref.WeakValueDictionary()
+        self._topics = Library(libname(topic_library))
 
         def cleanup(ref):
             participant.delete_subscriber(subscriber)
@@ -908,11 +913,16 @@ class DDS(object):
             _refs.remove(ref)
         _refs.add(weakref.ref(self, cleanup))
 
-    def get_topic(self, name, data_type):
+    def get_topic(self, qualified_name, sep='.'):
+        name = qualified_name.split(sep)[-1]
+        data_type = getattr(self._topics, qualified_name.replace(sep, '_'))
+        return self._get_topic(name, data_type)
+
+    def _get_topic(self, name, data_type):
         res = self._open_topics.get(name, None)
         if res is not None:
             if data_type != res.data_type:
-                raise ValueError('get_topic called with a previous name but a different data_type')
+                raise ValueError('_get_topic called with a previous name but a different data_type')
             return res
         res = Topic(self, name, data_type)
         self._open_topics[name] = res
