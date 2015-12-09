@@ -633,7 +633,7 @@ class TopicSuper(object):
 
         if not _filtered_topic_refs.has_key(name): _filtered_topic_refs[name] = []
 
-        def cleanup(ref):
+        def _cleanup(ref):
             if type(topic) is ctypes.POINTER(DDSType.Topic):
                 dds._publisher.delete_datawriter(writer)
                 dds._subscriber.delete_datareader(reader)
@@ -647,7 +647,7 @@ class TopicSuper(object):
                 del _filtered_topic_refs[name]
                 _refs.remove(ref)
 
-        _refs.add(weakref.ref(self, cleanup))
+        _refs.add(weakref.ref(self, _cleanup))
 
     def _create_topic(self):
         raise NotImplementedError("You must make an instance of a subclass that implements this method")
@@ -903,7 +903,7 @@ class DDS(object):
         self._open_topics = weakref.WeakValueDictionary()
         self._topics = Library(libname(topic_library))
 
-        def cleanup(ref):
+        def _cleanup(ref):
             participant.delete_subscriber(subscriber)
             participant.delete_publisher(publisher)
 
@@ -911,7 +911,7 @@ class DDS(object):
             DDSFunc.DomainParticipantFactory_get_instance().delete_participant(participant)
 
             _refs.remove(ref)
-        _refs.add(weakref.ref(self, cleanup))
+        _refs.add(weakref.ref(self, _cleanup))
 
     def get_topic(self, qualified_name, sep='.'):
         name = qualified_name.split(sep)[-1]
