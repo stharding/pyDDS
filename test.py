@@ -1,40 +1,89 @@
+from __future__ import print_function
+
+
 import sys
 import time
 import random
-
+import os
 import dds
+import json
+import threading
 
-recv = ['send', 'recv'].index(sys.argv[1])
+from signal import signal, SIGINT
 
-d = dds.DDS()
-l = dds.Library('./libddsmessages_c.so')
+d = dds.DDS('UCSTopics_C')
 
-topics = []
-#topics.append((d.get_topic('t1', l.State), lambda: dict(workername=str(random.randrange(2**10)), state=random.randrange(-2**31, 2**31), health=random.random())))
-topics.append((d.get_topic('t2', l.HydrophoneMessage), lambda: dict(timestamp=int(1e9*time.time()), declination=random.random(), heading=random.random(), distance=random.random(), frequency=random.random(), valid=random.choice([True, False]))))
-topics.append((d.get_topic('t3', l.PDWrenchMessage), lambda: dict(linear=[random.gauss(0, 1) for i in xrange(3)], moment=[random.gauss(0, 1) for i in xrange(3)])))
-topics.append((d.get_topic('t4', l.VisionSetIDsMessage), lambda: dict(visionids=[random.randrange(1000) for i in xrange(random.randrange(10))], cameraid=random.randrange(10))))
-topics.append((d.get_topic('t5', l.ChatMessage), lambda: dict(username=str(random.randrange(2**10)), message=str(random.randrange(2**10)))))
-topics.append((d.get_topic('t6', l.IMUMessage), lambda: dict(timestamp=int(1e9*time.time()), flags=random.randrange(2**16), temp=random.random(), supply=random.random(), acceleration=[random.gauss(0, 1) for i in xrange(3)], angular_rate=[random.gauss(0, 1) for i in xrange(3)], mag_field=[random.gauss(0, 1) for i in xrange(3)])))
-topics.append((d.get_topic('t7', l.PDStatusMessage), lambda: dict(timestamp=int(1e9*time.time()), state=random.randrange(-2**15, 2**15), estop=random.choice([True, False]), current=[random.random() for i in xrange(8)], tickcount=random.randrange(2**32), flags=random.randrange(2**32), current16=random.gauss(10, 1), voltage16=random.gauss(16, 1), current32=random.gauss(5, .5), voltage32=random.gauss(32, 2))))
-topics.append((d.get_topic('t8', l.FinderMessageList), lambda: dict(messages2d=[dict(objectid=random.randrange(2**30), u=random.randrange(2**30), v=random.randrange(2**30), scale=random.gauss(0, 1), angle=random.gauss(1, 1)) for i in xrange(random.randrange(10))], messages3d=[dict(objectid=random.randrange(2**30), x=random.gauss(0, 1), y=random.gauss(0, 1), z=random.gauss(0, 1), ang1=random.gauss(0, 1), ang2=random.gauss(0, 1), ang3=random.gauss(0, 1)) for i in xrange(random.randrange(10))], cameraid=random.randrange(10))))
-topics.append((d.get_topic('t8', l.FinderMessageList), lambda: dict(messages2d=[dict(objectid=random.randrange(2**30), u=random.randrange(2**30), v=random.randrange(2**30), scale=random.gauss(0, 1), angle=random.gauss(1, 1)) for i in xrange(random.randrange(10))], messages3d=[dict(objectid=random.randrange(2**30), x=random.gauss(0, 1), y=random.gauss(0, 1), z=random.gauss(0, 1), ang1=random.gauss(0, 1), ang2=random.gauss(0, 1), ang3=random.gauss(0, 1)) for i in xrange(random.randrange(10))], cameraid=random.randrange(10))))
+t1 = d.get_topic('LDM.Maritime.Primary_Mission_Control.Vehicle_Management.GlobalPoseSensor.GlobalPoseStatusType')
+t2 = d.get_topic('LDM.Maritime.Primary_Mission_Control.Sensor_Management.VisualSensor.VisualSensorCommandType')
+# msg = {
+#     'sourceSystemID' : 'pwahahaha',
+#     'altitudeAGL' : 99,
+#     'altitudeASF' : 102,
+#     'altitudeMSL' : 304,
+#     'attitude' : {
+#         # 'azimuth'   : 359,
+#         'elevation' : 30,
+#         'rotation'  : 90,
+#     },
+#     'attitudeRMS' : { 'orientationError' : 0},
+#     'depth' : 3,
+#     'position' : {
+#         'altitude'  : 88,
+#         'latitude'  : 117.3,
+#         'longitude' : 32.5,
+#     },
+#     'timeStamp' : 1234567,
+#     'xyPositionRMS' : {'positionError':100},
+#     'zPositionRMS' : {'distanceError':66},
+# }
 
-if recv:
-    while True:
-        time.sleep(.01)
-        t, mf = random.choice(topics)
-        try:
-            msg = t.recv()
-        except dds.Error, e:
-            if e.message == 'no data':
-                continue
-            raise
-        print "Received %r on %s" % (msg, t.name)
-else:
-    while True:
-        t, mf = random.choice(topics)
-        msg = mf()
-        print "Sending %r on %s" % (msg, t.name)
-        t.send(msg)
-        time.sleep(.1)
+
+t2_msg = {
+    'targetSystemID' : 'blah.blah.blah',
+    'thermalImageMode' : 'WHITE_HOT_IRPolarityEnumTypeLDM',
+    'timeStamp' : random.random(),
+}
+t2.publish(t2_msg)
+
+# time.sleep(1)
+
+# print("Calling dispose")
+
+# t2.dispose(t2_msg)
+
+running = True
+
+def handle_sigint(signal, frame):
+    global running
+    print("\n--Disposing of topics--")
+    running = False
+    t1.dispose(t1_msg)
+    t2.dispose(t2_msg)
+
+signal(SIGINT, handle_sigint)
+
+while running:
+    t1_msg = {
+        'sourceSystemID' : 'pwahahaha',
+        'position' : {
+            'altitude' : random.randint(0,100),
+        },
+        'depth' : random.randint(0,100),
+    }
+    t1.publish(t1_msg)
+    t1_msg = {
+        'sourceSystemID' : '19',
+        'position' : {
+            'altitude' : random.randint(0,100),
+        },
+        'depth' : random.randint(0,100),
+    }
+    t1.publish(t1_msg)
+    t2_msg = {
+        'targetSystemID' : 'blah.blah.blah',
+        'thermalImageMode' : 'WHITE_HOT_IRPolarityEnumTypeLDM',
+        'timeStamp' : random.random(),
+    }
+    t2.publish(t2_msg)
+    time.sleep(1)
+
