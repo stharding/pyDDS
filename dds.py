@@ -149,6 +149,51 @@ class DDSType(object):
         setattr(self, attr, contents)
         return contents
 
+
+DDSType.BuiltinTopicKey_t._fields_ = [
+    ('value', ctypes.c_int32 * 4),
+]
+
+DDSType.TopicBuiltinTopicData._fields_ = [
+    ('key', DDSType.BuiltinTopicKey_t),
+    ('name', ctypes.c_char_p),
+    ('type_name', ctypes.c_char_p),
+]
+
+DDSType.PublicationBuiltinTopicData._fields_ = [
+    ('key', DDSType.BuiltinTopicKey_t),
+    ('participant_key', DDSType.BuiltinTopicKey_t),
+    ('topic_name', ctypes.c_char_p),
+    ('type_name', ctypes.c_char_p),
+    # ('durability', DDSType.DurabilityQosPolicy),
+    # ('durability_service', DDSType.DurabilityServiceQosPolicy),
+    # ('deadline', DDSType.DeadlineQosPolicy),
+    # ('latency_budget', DDSType.LatencyBudgetQosPolicy),
+    # ('liveliness', DDSType.LivelinessQosPolicy),
+    # ('reliability', DDSType.ReliabilityQosPolicy),
+    # ('lifespan', DDSType.LifespanQosPolicy),
+    # ('user_data', DDSType.UserDataQosPolicy),
+    # ('ownership', DDSType.OwnershipQosPolicy),
+    # ('ownership_strength', DDSType.OwnershipStrengthQosPolicy),
+    # ('destination_order', DDSType.DestinationOrderQosPolicy),
+    # ('presentation', DDSType.PresentationQosPolicy),
+    # ('partition', DDSType.PartitionQosPolicy),
+    # ('topic_data', DDSType.TopicDataQosPolicy),
+    # ('group_data', DDSType.GroupDataQosPolicy),
+    # ('type_code', ctypes.POINTER(DDSType.TypeCode)),
+    # ('publisher_key', DDSType.BuiltinTopicKey_t),
+    # ('property', DDSType.PropertyQosPolicy),
+    # ('unicast_locators', DDSType.LocatorSeq),
+    # ('virtual_guid', DDSType.GUID_t),
+    # ('service', DDSType.ServiceQosPolicy),
+    # ('rtps_protocol_version', DDSType.ProtocolVersion_t),
+    # ('rtps_vendor_id', DDSType.VendorId_t),
+    # ('product_version', DDSType.ProductVersion_t),
+    # ('locator_filter', DDSType.LocatorFilterQosPolicy),
+    # ('disable_positive_acks', DDSType.Boolean),
+    # ('publication_name', DDSType.EntityNameQosPolicy),
+]
+
 DDSType.Time_t._fields_ = [
     ('sec', DDS_Long),
     ('nanosec', DDS_UnsignedLong),
@@ -170,7 +215,8 @@ DDSType.ContentFilteredTopic._fields_ = [
 ctypes.POINTER(DDSType.Topic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 ctypes.POINTER(DDSType.ContentFilteredTopic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 
-DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = DDSType.StringSeq._fields_ = [
+DDSType.InstanceHandleSeq._fields_ = DDSType.PublicationBuiltinTopicDataSeq._fields_ = \
+                                     DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = DDSType.StringSeq._fields_ = [
     ('_owned', ctypes.c_bool),
     ('_contiguous_buffer', ctypes.c_void_p),
     ('_discontiguous_buffer', ctypes.c_void_p),
@@ -314,6 +360,9 @@ map(_define_func, [
     ('DomainParticipant_set_default_profile',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p, ctypes.c_char_p]),
+    # ('Entity_enable',
+    #     check_code, DDS_ReturnCode_t,
+    #     [ctypes.POINTER(DDSType.DomainParticipant)]),
 
     ('DomainParticipant_create_publisher',
         check_null, ctypes.POINTER(DDSType.Publisher),
@@ -345,6 +394,64 @@ map(_define_func, [
     ('DomainParticipant_delete_contentfilteredtopic',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.ContentFilteredTopic)]),
+    ('DomainParticipant_get_builtin_subscriber',
+        None, ctypes.POINTER(DDSType.Subscriber),
+        [ctypes.POINTER(DDSType.DomainParticipant)]),
+    ('DomainParticipant_get_discovered_topics',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+    ('DomainParticipant_get_discovered_topic_data',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DomainParticipant), ctypes.POINTER(DDSType.TopicBuiltinTopicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
+
+    ('TopicBuiltinTopicDataDataReader_narrow',
+        check_null, ctypes.POINTER(DDSType.TopicBuiltinTopicDataDataReader),
+        [ctypes.POINTER(DDSType.DataReader)]),
+
+    ('TopicBuiltinTopicDataDataReader_get_key_value',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.TopicBuiltinTopicDataDataReader), ctypes.POINTER(DDSType.TopicBuiltinTopicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
+
+    ('TopicBuiltinTopicDataTypeSupport_create_data',
+        None, DDSType.TopicBuiltinTopicData, []),
+
+    ('InstanceHandleSeq_initialize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+    ('InstanceHandleSeq_get_length',
+        None, DDS_Long, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+
+    ('ParticipantBuiltinTopicDataDataReader_narrow',
+        check_null, ctypes.POINTER(DDSType.ParticipantBuiltinTopicDataDataReader),
+        [ctypes.POINTER(DDSType.DataReader)]),
+
+    ('PublicationBuiltinTopicDataDataReader_narrow',
+        check_null, ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader),
+        [ctypes.POINTER(DDSType.DataReader)]),
+    ('SubscriptionBuiltinTopicDataDataReader_narrow',
+        check_null, ctypes.POINTER(DDSType.SubscriptionBuiltinTopicDataDataReade),
+        [ctypes.POINTER(DDSType.DataReader)]),
+
+    ('PublicationBuiltinTopicDataDataReader_take',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader), ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq), DDS_Long, DDS_SampleStateMask, DDS_ViewStateMask, DDS_InstanceStateMask]),
+    ('PublicationBuiltinTopicDataDataReader_return_loan',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader), ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq)]),
+    ('PublicationBuiltinTopicDataSeq_initialize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq)]),
+
+
+    ('InstanceHandleSeq_get_length',
+        None, DDS_Long, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+    ('InstanceHandleSeq_get_reference',
+        check_null, ctypes.POINTER(DDSType.InstanceHandle_t), [ctypes.POINTER(DDSType.InstanceHandleSeq), DDS_Long]),
+
+    ('PublicationBuiltinTopicDataSeq_get_length',
+        None, DDS_Long, [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq)]),
+    ('PublicationBuiltinTopicDataSeq_get_reference',
+        check_null, ctypes.POINTER(DDSType.PublicationBuiltinTopicData), [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq), DDS_Long]),
+
+
     ('Publisher_create_datawriter',
         check_null, ctypes.POINTER(DDSType.DataWriter),
         [ctypes.POINTER(DDSType.Publisher), ctypes.POINTER(DDSType.Topic), ctypes.POINTER(DDSType.DataWriterQos), ctypes.POINTER(DDSType.DataWriterListener), DDS_StatusMask]),
@@ -358,6 +465,9 @@ map(_define_func, [
     ('Subscriber_delete_datareader',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.Subscriber), ctypes.POINTER(DDSType.DataReader)]),
+    ('Subscriber_lookup_datareader',
+        check_null, ctypes.POINTER(DDSType.DataReader),
+        [ctypes.POINTER(DDSType.Subscriber), ctypes.c_char_p]),
 
     ('DataReader_set_listener',
         check_code, DDS_ReturnCode_t,
@@ -699,9 +809,9 @@ class TopicSuper(object):
 
     def _on_data_available(self, listener_data, datareader):
         data_seq = DDSType.DynamicDataSeq()
-        DDSFunc.DynamicDataSeq_initialize(data_seq)
+        data_seq.initialize()
         info_seq = DDSType.SampleInfoSeq()
-        DDSFunc.SampleInfoSeq_initialize(info_seq)
+        info_seq.initialize()
         try:
             self._dyn_narrowed_reader.take(
                 ctypes.byref(data_seq),
@@ -729,7 +839,11 @@ class TopicSuper(object):
             self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
     def _generate_instance(self):
-        return unpack_dd(self._support.create_data())
+        sample = self._support.create_data()
+        instance = unpack_dd(sample)
+        # self._support.print_data(sample)
+        self._support.delete_data(sample)
+        return instance
 
     def _update(self, obj, data):
         for k, v in data.iteritems():
@@ -879,7 +993,7 @@ class Topic(TopicSuper):
 
 
 class DDS(object):
-    def __init__(self, topic_library, qos_library=None, qos_profile=None, domain_id=0):
+    def __init__(self, topic_library, qos_library=None, qos_profile=None, domain_id=0, get_all=False):
         if qos_library and qos_profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
@@ -888,7 +1002,7 @@ class DDS(object):
             None,
             0,
         )
-
+        if get_all: self.get_all_topics()
         self._publisher = publisher = self._participant.create_publisher(
             get('PUBLISHER_QOS_DEFAULT', DDSType.PublisherQos),
             None,
@@ -912,6 +1026,79 @@ class DDS(object):
 
             _refs.remove(ref)
         _refs.add(weakref.ref(self, _cleanup))
+
+    def get_all_topics(self):
+        # handle_seq = DDSType.InstanceHandleSeq()
+        # handle_seq.initialize()
+        # self._participant.get_discovered_topics(handle_seq)
+        # # print(handle_seq.get_length())
+        # for i in xrange(handle_seq.get_length()):
+
+        #     # topic_data = DDSType.TopicBuiltinTopicDataTypeSupport().create_data()
+        #     topic_data = DDSType.TopicBuiltinTopicData()
+        #     self._participant.get_discovered_topic_data(ctypes.byref(topic_data), handle_seq.get_reference(i))
+        #     print('name:', topic_data.name)
+
+        builtin_subscriber = self._participant.get_builtin_subscriber()
+        participant_dr  = DDSFunc.ParticipantBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSParticipant'))
+        publication_dr  = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSPublication'))
+        subscription_dr = DDSFunc.SubscriptionBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSSubscription'))
+
+        data_seq = DDSType.PublicationBuiltinTopicDataSeq()
+        data_seq.initialize()
+        info_seq = DDSType.SampleInfoSeq()
+        info_seq.initialize()
+        # data_seq = DDSType.DynamicDataSeq()
+        # data_seq.initialize()
+        # info_seq = DDSType.SampleInfoSeq()
+        # info_seq.initialize()
+        try:
+            publication_dr.take(
+                ctypes.byref(data_seq),
+                ctypes.byref(info_seq),
+                DDS_LENGTH_UNLIMITED,
+                get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
+                get('ANY_VIEW_STATE', DDS_ViewStateMask),
+                get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+            )
+
+            for i in xrange(data_seq.get_length()):
+                print("made it in!!!")
+                dd = data_seq.get_reference(i)
+                x = dd.contents.topic_name
+
+                info = info_seq.get_reference(i).contents
+                if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
+                    print('instance revoked ...')
+                if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
+                    print('liveliness lost')
+                if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
+                    # print('0x' + str(hex(dd.contents.topic_name)))
+                    # print(type(dd.contents.durability))
+                    # print(type(dd.contents.type_code.contents))
+                    print(dd.contents.topic_name)
+                    print(dd.contents.type_name)
+                    # tc = dd.contents.type_code.contents
+                    # print(tc.member_count(ex()))
+                    # s = ctypes.cast(x, ctypes.POINTER(ctypes.c_char))
+                    # print(type(s))
+                    # print(s.contents)
+                    # for i in s:
+                        # print(i)
+                    # x = ex()
+                    # n = tc.name(x)
+                    # print(x)
+                    # print(tc.get)
+                    # if self._data_available_callback: self._data_available_callback(unpack_dd(data_seq.get_reference(i)))
+
+        except NoDataError:
+            # print("no data ...")
+            return
+        except Exception, e:
+            raise e
+        finally:
+            publication_dr.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
+
 
     def get_topic(self, qualified_name, sep='.'):
         name = qualified_name.split(sep)[-1]
