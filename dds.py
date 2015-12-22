@@ -13,7 +13,7 @@ import platform
 
 def libname(name):
     if platform.uname()[0] == 'Windows':
-        return 'lib' + name + '.dll'
+        return name + '.dll'
     elif platform.uname()[0] == 'Darwin':
         return 'lib' + name + '.dylib'
     else:
@@ -1028,17 +1028,6 @@ class DDS(object):
         _refs.add(weakref.ref(self, _cleanup))
 
     def get_all_topics(self):
-        # handle_seq = DDSType.InstanceHandleSeq()
-        # handle_seq.initialize()
-        # self._participant.get_discovered_topics(handle_seq)
-        # # print(handle_seq.get_length())
-        # for i in xrange(handle_seq.get_length()):
-
-        #     # topic_data = DDSType.TopicBuiltinTopicDataTypeSupport().create_data()
-        #     topic_data = DDSType.TopicBuiltinTopicData()
-        #     self._participant.get_discovered_topic_data(ctypes.byref(topic_data), handle_seq.get_reference(i))
-        #     print('name:', topic_data.name)
-
         builtin_subscriber = self._participant.get_builtin_subscriber()
         participant_dr  = DDSFunc.ParticipantBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSParticipant'))
         publication_dr  = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSPublication'))
@@ -1048,10 +1037,7 @@ class DDS(object):
         data_seq.initialize()
         info_seq = DDSType.SampleInfoSeq()
         info_seq.initialize()
-        # data_seq = DDSType.DynamicDataSeq()
-        # data_seq.initialize()
-        # info_seq = DDSType.SampleInfoSeq()
-        # info_seq.initialize()
+
         try:
             publication_dr.take(
                 ctypes.byref(data_seq),
@@ -1063,7 +1049,6 @@ class DDS(object):
             )
 
             for i in xrange(data_seq.get_length()):
-                print("made it in!!!")
                 dd = data_seq.get_reference(i)
                 x = dd.contents.topic_name
 
@@ -1073,23 +1058,8 @@ class DDS(object):
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
                     print('liveliness lost')
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
-                    # print('0x' + str(hex(dd.contents.topic_name)))
-                    # print(type(dd.contents.durability))
-                    # print(type(dd.contents.type_code.contents))
-                    print(dd.contents.topic_name)
                     print(dd.contents.type_name)
-                    # tc = dd.contents.type_code.contents
-                    # print(tc.member_count(ex()))
-                    # s = ctypes.cast(x, ctypes.POINTER(ctypes.c_char))
-                    # print(type(s))
-                    # print(s.contents)
-                    # for i in s:
-                        # print(i)
-                    # x = ex()
-                    # n = tc.name(x)
-                    # print(x)
-                    # print(tc.get)
-                    # if self._data_available_callback: self._data_available_callback(unpack_dd(data_seq.get_reference(i)))
+
 
         except NoDataError:
             # print("no data ...")
