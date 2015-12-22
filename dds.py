@@ -993,7 +993,18 @@ class Topic(TopicSuper):
 
 
 class DDS(object):
-    def __init__(self, topic_library, qos_library=None, qos_profile=None, domain_id=0, get_all=False):
+    """
+    The main DDS interface.
+
+    Parameters:
+        topic_libraries ([String]) The list of topic libraries. If there is only one topic library,
+                                   you may pass just the name instead of a list.
+        qos_library     (String)   The name of the QOS library to use (Optional)
+        qos_profile     (String)   The name of the QOS profile to use (Optional)
+        domain_id       (Integer)  The domain ID (defaults to 0)
+        get_all         (Boolean)  Set to true if you want to get all topic data with a call to get_all_topics()
+    """
+    def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0, get_all=False):
         if qos_library and qos_profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
@@ -1015,7 +1026,8 @@ class DDS(object):
             0,
         )
         self._open_topics = weakref.WeakValueDictionary()
-        self._topics = Library(libname(topic_library))
+        if type(topic_libraries) != list: topic_libraries = [topic_libraries]
+        self._topics = Library(map(libname, topic_libraries))
 
         def _cleanup(ref):
             participant.delete_subscriber(subscriber)
@@ -1062,7 +1074,6 @@ class DDS(object):
 
 
         except NoDataError:
-            # print("no data ...")
             return
         except Exception, e:
             raise e
@@ -1087,24 +1098,26 @@ class DDS(object):
 
 
 class LibraryType(object):
-    def __init__(self, lib, name):
-        self._lib, self.name = lib, name
-        del lib, name
+    def __init__(self, libs, name):
+        self._libs, self.name = libs, name
+        del libs, name
 
         assert self._get_typecode().name(ex()).replace('::', '_') == self.name.replace('::', '_')
 
     def _get_typecode(self):
-        f = getattr(self._lib, self.name + '_get_typecode')
-        f.argtypes = []
-        f.restype = ctypes.POINTER(DDSType.TypeCode)
-        f.errcheck = check_null
-        return f()
+        for lib in self._libs:
+            if hasattr(lib, self.name + '_get_typecode'):
+                f = getattr(lib, self.name + '_get_typecode')
+                f.argtypes = []
+                f.restype = ctypes.POINTER(DDSType.TypeCode)
+                f.errcheck = check_null
+                return f()
 
 class Library(object):
-    def __init__(self, so_path):
-        self._lib = ctypes.CDLL(so_path)
+    def __init__(self, so_paths):
+        self._libs = map(ctypes.CDLL, so_paths)
 
     def __getattr__(self, attr):
-        res = LibraryType(self._lib, attr)
+        res = LibraryType(self._libs, attr)
         setattr(self, attr, res)
         return res
