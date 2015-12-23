@@ -67,6 +67,33 @@ DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE = 4
 
 DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED = 0
 
+DDS_DURATION_INFINITE_SEC  = 2**31 - 1
+DDS_DURATION_INFINITE_NSEC = 2**31 - 1
+
+DDS_INCONSISTENT_TOPIC_STATUS                     = 1 <<  0
+DDS_OFFERED_DEADLINE_MISSED_STATUS                = 1 <<  1
+DDS_REQUESTED_DEADLINE_MISSED_STATUS              = 1 <<  2
+DDS_OFFERED_INCOMPATIBLE_QOS_STATUS               = 1 <<  5
+DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS             = 1 <<  6
+DDS_SAMPLE_LOST_STATUS                            = 1 <<  7
+DDS_SAMPLE_REJECTED_STATUS                        = 1 <<  8
+DDS_DATA_ON_READERS_STATUS                        = 1 <<  9
+DDS_DATA_AVAILABLE_STATUS                         = 1 << 10
+DDS_LIVELINESS_LOST_STATUS                        = 1 << 11
+DDS_LIVELINESS_CHANGED_STATUS                     = 1 << 12
+DDS_PUBLICATION_MATCHED_STATUS                    = 1 << 13
+DDS_SUBSCRIPTION_MATCHED_STATUS                   = 1 << 14
+DDS_DATA_WRITER_APPLICATION_ACKNOWLEDGMENT_STATUS = 1 << 22
+DDS_DATA_WRITER_INSTANCE_REPLACED_STATUS          = 1 << 23
+DDS_RELIABLE_WRITER_CACHE_CHANGED_STATUS          = 1 << 24
+DDS_RELIABLE_READER_ACTIVITY_CHANGED_STATUS       = 1 << 25
+DDS_DATA_WRITER_CACHE_STATUS                      = 1 << 26
+DDS_DATA_WRITER_PROTOCOL_STATUS                   = 1 << 27
+DDS_DATA_READER_CACHE_STATUS                      = 1 << 28
+DDS_DATA_READER_PROTOCOL_STATUS                   = 1 << 29
+DDS_DATA_WRITER_DESTINATION_UNREACHABLE_STATUS    = 1 << 30
+DDS_DATA_WRITER_SAMPLE_REMOVED_STATUS             = 1 << 31
+
 # Error checkers
 
 class Error(Exception):
@@ -150,6 +177,12 @@ class DDSType(object):
         return contents
 
 
+DDSType.Duration_t._fields_ = [
+    ('sec', DDS_Long),
+    ('nanosec', DDS_UnsignedLong)
+]
+
+
 DDSType.BuiltinTopicKey_t._fields_ = [
     ('value', ctypes.c_int32 * 4),
 ]
@@ -216,7 +249,8 @@ ctypes.POINTER(DDSType.Topic).as_topicdescription = lambda self: self.contents._
 ctypes.POINTER(DDSType.ContentFilteredTopic).as_topicdescription = lambda self: self.contents._as_TopicDescription
 
 DDSType.InstanceHandleSeq._fields_ = DDSType.PublicationBuiltinTopicDataSeq._fields_ = \
-                                     DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = DDSType.StringSeq._fields_ = [
+                                     DDSType.DynamicDataSeq._fields_ = DDSType.SampleInfoSeq._fields_ = \
+                                     DDSType.StringSeq._fields_ = DDSType.ConditionSeq._fields_ = [
     ('_owned', ctypes.c_bool),
     ('_contiguous_buffer', ctypes.c_void_p),
     ('_discontiguous_buffer', ctypes.c_void_p),
@@ -601,6 +635,21 @@ map(_define_func, [
 
     ('StringSeq_from_array',
         None, DDS_Boolean, [ctypes.POINTER(DDSType.StringSeq), ctypes.POINTER(ctypes.c_char_p), DDS_Long]),
+
+    ('WaitSet_new', None, ctypes.POINTER(DDSType.WaitSet), []),
+    ('WaitSet_attach_condition',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.WaitSet), ctypes.POINTER(DDSType.Condition)]),
+    ('WaitSet_wait',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.WaitSet), ctypes.POINTER(DDSType.ConditionSeq), ]),
+
+    ('Entity_get_statuscondition',
+        None, ctypes.POINTER(DDSType.StatusCondition),
+        [ctypes.POINTER(DDSType.Entity)]),
+    ('StatusCondition_set_enabled_statuses',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.StatusCondition), DDS_Long]),
 ])
 
 def write_into_dd_member(obj, dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED):
@@ -1002,9 +1051,8 @@ class DDS(object):
         qos_library     (String)   The name of the QOS library to use (Optional)
         qos_profile     (String)   The name of the QOS profile to use (Optional)
         domain_id       (Integer)  The domain ID (defaults to 0)
-        get_all         (Boolean)  Set to true if you want to get all topic data with a call to get_all_topics()
     """
-    def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0, get_all=False):
+    def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0, _get_all=False):
         if qos_library and qos_profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
@@ -1013,7 +1061,7 @@ class DDS(object):
             None,
             0,
         )
-        if get_all: self.get_all_topics()
+        if _get_all: self._get_all_topics()
         self._publisher = publisher = self._participant.create_publisher(
             get('PUBLISHER_QOS_DEFAULT', DDSType.PublisherQos),
             None,
@@ -1039,7 +1087,7 @@ class DDS(object):
             _refs.remove(ref)
         _refs.add(weakref.ref(self, _cleanup))
 
-    def get_all_topics(self):
+    def _get_all_topics(self):
         builtin_subscriber = self._participant.get_builtin_subscriber()
         participant_dr  = DDSFunc.ParticipantBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSParticipant'))
         publication_dr  = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSPublication'))
