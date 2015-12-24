@@ -347,7 +347,7 @@ class TCKind(object):
     RAW_BYTES        =  0x7e
     RAW_BYTES_KEYED  =  0x7f
 
-DATA_AVAILABLE_STATUS = 0x0001 << 10
+DATA_AVAILABLE_STATUS = 1 << 10
 
 # Function prototypes
 
@@ -751,9 +751,7 @@ def unpack_dd(dd):
         tc = dd.get_type()
         for i in xrange(tc.member_count(ex())):
             name = tc.member_name(i, ex())
-            print('unpacking', name)
             obj[name] = unpack_dd_member(dd, member_name=name)
-            print(name, 'done')
         return obj
     elif kind == TCKind.ARRAY or kind == TCKind.SEQUENCE:
         obj = []
@@ -1109,7 +1107,6 @@ class DDS(object):
         condition.set_enabled_statuses(DDS_DATA_AVAILABLE_STATUS)
         condition_seq = DDSType.ConditionSeq()
         condition_seq.initialize()
-        # waitset.attach_condition(publication_dr.get_statuscondition())
 
         while True:
             waitset.wait(
