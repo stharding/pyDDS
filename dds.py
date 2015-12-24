@@ -8,8 +8,8 @@ import time
 import json
 import collections
 import uuid
-import exceptions
 import platform
+import threading
 
 def libname(name):
     if platform.uname()[0] == 'Windows':
@@ -774,7 +774,8 @@ class TopicSuper(object):
         self._filter_expression = filter_expression
 
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
-        self._support.register_type(self._dds._participant, self.data_type._get_typecode().name(ex()))
+        self._type_name = self.data_type._get_typecode().name(ex())
+        self._support.register_type(self._dds._participant, self._type_name)
 
         self._topic  = topic      = self._create_topic()
         self._writer = writer     = self._create_writer()
@@ -876,12 +877,17 @@ class TopicSuper(object):
 
             for i in xrange(data_seq.get_length()):
                 info = info_seq.get_reference(i).contents
-                if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
-                    if self._instance_revoked_cb: self._instance_revoked_cb()
-                if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
-                    if self._liveliness_lost_cb: self._liveliness_lost_cb()
-                if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
-                    if self._data_available_callback: self._data_available_callback(unpack_dd(data_seq.get_reference(i)))
+                if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
+                    if self._send_topic_info: self._instance_revoked_cb(self._type_name)
+                    else: self._instance_revoked_cb()
+                if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
+                    if self._send_topic_info: self._liveliness_lost_cb(self._type_name)
+                    else: self._liveliness_lost_cb()
+                if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
+                    data = unpack_dd(data_seq.get_reference(i))
+                    if self._send_topic_info:
+                        data = {'name': self._type_name, 'data': data}
+                    self._data_available_callback(data)
 
         except NoDataError:
             return
@@ -977,7 +983,7 @@ class Topic(TopicSuper):
         )
 
 
-    def subscribe(self, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None, filter_expression=None):
+    def subscribe(self, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None, filter_expression=None, _send_topic_info=False):
 
         """
         Makes a DDS subscription for this topic with the provided callback.
@@ -1008,6 +1014,8 @@ class Topic(TopicSuper):
 
         [1] https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm
         """
+
+        self._send_topic_info = _send_topic_info
 
         if filter_expression:
             filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression)
@@ -1043,6 +1051,33 @@ class Topic(TopicSuper):
         finally:
             self._support.delete_data(sample)
 
+def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None):
+    """
+    Subscribes to all topics published on the DDS bus.
+    It will subscribe to topics that are already publised and
+    will also subscribe to new topics as they are published.
+
+    The provided data_available_callback will be called with a
+    dictionary of the form:
+        {
+            'name': <full topic name>,
+            'data': <topic data (this is a dictionary)>
+        }
+
+    Parameters:
+        topic_libraries         ([string] or string) The library of list of library names for the topics.
+        data_available_callback (function)           The function to call with the topic data.
+        instance_revoked_cb     (function)           The function to call if the topic instance is revoked. (Optional)
+                                                     The function will be called with the topic name.
+    """
+
+    d = DDS(topic_libraries,
+            _get_all=True,
+            _all_data_available_cb=data_available_callback,
+            _all_ir_cb=instance_revoked_cb,
+            _all_ll_cb=liveliness_lost_cb
+    )
+
 
 class DDS(object):
     """
@@ -1055,7 +1090,10 @@ class DDS(object):
         qos_profile     (String)   The name of the QOS profile to use (Optional)
         domain_id       (Integer)  The domain ID (defaults to 0)
     """
-    def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0, _get_all=False):
+    def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0,
+                 _get_all=False, _all_data_available_cb=None, _all_ir_cb=None, _all_ll_cb=None):
+
+        self._initialized = False
         if qos_library and qos_profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
@@ -1064,7 +1102,12 @@ class DDS(object):
             None,
             0,
         )
-        if _get_all: self._get_all_topics()
+        if _get_all:
+            self._all_data_available_cb = _all_data_available_cb or (lambda x: None)
+            self._all_ir_cb             = _all_ir_cb             or (lambda x: None)
+            self._all_ll_cb             = _all_ll_cb             or (lambda x: None)
+            self._all_topics = {}
+            threading.Thread(target=self._get_all_topics).start()
         self._publisher = publisher = self._participant.create_publisher(
             get('PUBLISHER_QOS_DEFAULT', DDSType.PublisherQos),
             None,
@@ -1076,6 +1119,7 @@ class DDS(object):
             None,
             0,
         )
+
         self._open_topics = weakref.WeakValueDictionary()
         if type(topic_libraries) != list: topic_libraries = [topic_libraries]
         self._topics = Library(map(libname, topic_libraries))
@@ -1089,6 +1133,15 @@ class DDS(object):
 
             _refs.remove(ref)
         _refs.add(weakref.ref(self, _cleanup))
+        if _get_all:
+            for topic in self._all_topics:
+                self._all_topics[topic] = self.get_topic(topic)
+                print('subcribing to', topic)
+                self._all_topics[topic].subscribe(self._all_data_available_cb,
+                                                                  instance_revoked_cb=self._all_ir_cb,
+                                                                  liveliness_lost_cb=self._all_ll_cb,
+                                                                  _send_topic_info=True)
+        self._initialized = True
 
     def _get_all_topics(self):
         builtin_subscriber = self._participant.get_builtin_subscriber()
@@ -1128,19 +1181,21 @@ class DDS(object):
                     pd = data_seq.get_reference(i)
                     x  = pd.contents.topic_name
 
-                    info = info_seq.get_reference(i).contents
-                    if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
-                        print('instance revoked ...')
-                    if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
-                        print('liveliness lost')
-                    if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
-                        print(pd.contents.type_name)
-
+                    if pd.contents.type_name and pd.contents.type_name not in self._all_topics:
+                        print('IN _get_all_topics:', pd.contents.type_name)
+                        if self._initialized:
+                            self._all_topics[pd.contents.type_name] = self.get_topic(pd.contents.type_name, sep='::')
+                            self._all_topics[pd.contents.type_name].subscribe(self._all_data_available_cb,
+                                                                              instance_revoked_cb=self._all_ir_cb,
+                                                                              liveliness_lost_cb=self._all_ll_cb,
+                                                                              _send_topic_info=True)
+                        else:
+                            self._all_topics[pd.contents.type_name] = None
 
             except NoDataError:
                 return
-            except Exception, e:
-                raise e
+            # except Exception, e:
+            #     raise e
             finally:
                 publication_dr.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
