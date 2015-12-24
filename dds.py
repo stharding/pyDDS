@@ -642,7 +642,7 @@ map(_define_func, [
         [ctypes.POINTER(DDSType.WaitSet), ctypes.POINTER(DDSType.Condition)]),
     ('WaitSet_wait',
         check_code, DDS_ReturnCode_t,
-        [ctypes.POINTER(DDSType.WaitSet), ctypes.POINTER(DDSType.ConditionSeq), ]),
+        [ctypes.POINTER(DDSType.WaitSet), ctypes.POINTER(DDSType.ConditionSeq), ctypes.POINTER(DDSType.Duration_t)]),
 
     ('Entity_get_statuscondition',
         None, ctypes.POINTER(DDSType.StatusCondition),
@@ -650,6 +650,9 @@ map(_define_func, [
     ('StatusCondition_set_enabled_statuses',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.StatusCondition), DDS_Long]),
+
+    ('ConditionSeq_initialize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.ConditionSeq)]),
 ])
 
 def write_into_dd_member(obj, dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_UNSPECIFIED):
@@ -748,7 +751,9 @@ def unpack_dd(dd):
         tc = dd.get_type()
         for i in xrange(tc.member_count(ex())):
             name = tc.member_name(i, ex())
+            print('unpacking', name)
             obj[name] = unpack_dd_member(dd, member_name=name)
+            print(name, 'done')
         return obj
     elif kind == TCKind.ARRAY or kind == TCKind.SEQUENCE:
         obj = []
@@ -1098,35 +1103,49 @@ class DDS(object):
         info_seq = DDSType.SampleInfoSeq()
         info_seq.initialize()
 
-        try:
-            publication_dr.take(
-                ctypes.byref(data_seq),
-                ctypes.byref(info_seq),
-                DDS_LENGTH_UNLIMITED,
-                get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
-                get('ANY_VIEW_STATE', DDS_ViewStateMask),
-                get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+        waitset   = DDSFunc.WaitSet_new()
+        condition = DDSFunc.Entity_get_statuscondition(ctypes.cast(publication_dr, ctypes.POINTER(DDSType.Entity)))
+        waitset.attach_condition(ctypes.cast(condition, ctypes.POINTER(DDSType.Condition)))
+        condition.set_enabled_statuses(DDS_DATA_AVAILABLE_STATUS)
+        condition_seq = DDSType.ConditionSeq()
+        condition_seq.initialize()
+        # waitset.attach_condition(publication_dr.get_statuscondition())
+
+        while True:
+            waitset.wait(
+                ctypes.byref(condition_seq),
+                ctypes.byref(DDSType.Duration_t(DDS_DURATION_INFINITE_SEC, DDS_DURATION_INFINITE_NSEC))
             )
+            try:
 
-            for i in xrange(data_seq.get_length()):
-                dd = data_seq.get_reference(i)
-                x = dd.contents.topic_name
+                publication_dr.take(
+                    ctypes.byref(data_seq),
+                    ctypes.byref(info_seq),
+                    DDS_LENGTH_UNLIMITED,
+                    get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
+                    get('ANY_VIEW_STATE', DDS_ViewStateMask),
+                    get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+                )
 
-                info = info_seq.get_reference(i).contents
-                if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
-                    print('instance revoked ...')
-                if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
-                    print('liveliness lost')
-                if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
-                    print(dd.contents.type_name)
+                for i in xrange(data_seq.get_length()):
+                    pd = data_seq.get_reference(i)
+                    x  = pd.contents.topic_name
+
+                    info = info_seq.get_reference(i).contents
+                    if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE:
+                        print('instance revoked ...')
+                    if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE:
+                        print('liveliness lost')
+                    if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data:
+                        print(pd.contents.type_name)
 
 
-        except NoDataError:
-            return
-        except Exception, e:
-            raise e
-        finally:
-            publication_dr.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
+            except NoDataError:
+                return
+            except Exception, e:
+                raise e
+            finally:
+                publication_dr.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
 
 
     def get_topic(self, qualified_name, sep='.'):
