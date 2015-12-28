@@ -1139,10 +1139,12 @@ class DDS(object):
             for topic in self._all_topics:
                 self._all_topics[topic] = self.get_topic(topic, sep='::')
                 print('subcribing to', topic)
-                self._all_topics[topic].subscribe(self._all_data_available_cb,
-                                                                  instance_revoked_cb=self._all_ir_cb,
-                                                                  liveliness_lost_cb=self._all_ll_cb,
-                                                                  _send_topic_info=True)
+                self._all_topics[topic].subscribe(
+                    self._all_data_available_cb,
+                    instance_revoked_cb=self._all_ir_cb,
+                    liveliness_lost_cb=self._all_ll_cb,
+                    _send_topic_info=True
+                )
         self._initialized = True
 
 
