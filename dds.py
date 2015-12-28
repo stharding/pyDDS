@@ -1078,7 +1078,6 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
             _all_ll_cb=liveliness_lost_cb
     )
 
-
 class DDS(object):
     """
     The main DDS interface.
@@ -1102,12 +1101,15 @@ class DDS(object):
             None,
             0,
         )
+
         if _get_all:
             self._all_data_available_cb = _all_data_available_cb or (lambda x: None)
             self._all_ir_cb             = _all_ir_cb             or (lambda x: None)
             self._all_ll_cb             = _all_ll_cb             or (lambda x: None)
             self._all_topics = {}
             threading.Thread(target=self._get_all_topics).start()
+            time.sleep(0.5)
+
         self._publisher = publisher = self._participant.create_publisher(
             get('PUBLISHER_QOS_DEFAULT', DDSType.PublisherQos),
             None,
@@ -1135,7 +1137,7 @@ class DDS(object):
         _refs.add(weakref.ref(self, _cleanup))
         if _get_all:
             for topic in self._all_topics:
-                self._all_topics[topic] = self.get_topic(topic)
+                self._all_topics[topic] = self.get_topic(topic, sep='::')
                 print('subcribing to', topic)
                 self._all_topics[topic].subscribe(self._all_data_available_cb,
                                                                   instance_revoked_cb=self._all_ir_cb,
@@ -1143,11 +1145,11 @@ class DDS(object):
                                                                   _send_topic_info=True)
         self._initialized = True
 
+
     def _get_all_topics(self):
+
         builtin_subscriber = self._participant.get_builtin_subscriber()
-        participant_dr  = DDSFunc.ParticipantBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSParticipant'))
         publication_dr  = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSPublication'))
-        subscription_dr = DDSFunc.SubscriptionBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSSubscription'))
 
         data_seq = DDSType.PublicationBuiltinTopicDataSeq()
         data_seq.initialize()
@@ -1167,7 +1169,6 @@ class DDS(object):
                 ctypes.byref(DDSType.Duration_t(DDS_DURATION_INFINITE_SEC, DDS_DURATION_INFINITE_NSEC))
             )
             try:
-
                 publication_dr.take(
                     ctypes.byref(data_seq),
                     ctypes.byref(info_seq),
@@ -1179,10 +1180,8 @@ class DDS(object):
 
                 for i in xrange(data_seq.get_length()):
                     pd = data_seq.get_reference(i)
-                    x  = pd.contents.topic_name
-
                     if pd.contents.type_name and pd.contents.type_name not in self._all_topics:
-                        print('IN _get_all_topics:', pd.contents.type_name)
+                        # print('IN _get_all_topics:', pd.contents.type_name)
                         if self._initialized:
                             self._all_topics[pd.contents.type_name] = self.get_topic(pd.contents.type_name, sep='::')
                             self._all_topics[pd.contents.type_name].subscribe(self._all_data_available_cb,
@@ -1194,11 +1193,8 @@ class DDS(object):
 
             except NoDataError:
                 return
-            # except Exception, e:
-            #     raise e
             finally:
                 publication_dr.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
-
 
     def get_topic(self, qualified_name, sep='.'):
         name = qualified_name.split(sep)[-1]
