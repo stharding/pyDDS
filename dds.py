@@ -1,16 +1,11 @@
 from __future__ import print_function
 
 import ctypes
-import os
-import sys
 import weakref
-import time
-import json
 import collections
 import uuid
 import platform
 import threading
-import multiprocessing
 
 def libname(name):
     if platform.uname()[0] == 'Windows':
@@ -395,9 +390,9 @@ map(_define_func, [
     ('DomainParticipant_set_default_profile',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.DomainParticipantFactory), ctypes.c_char_p, ctypes.c_char_p]),
-    # ('Entity_enable',
-    #     check_code, DDS_ReturnCode_t,
-    #     [ctypes.POINTER(DDSType.DomainParticipant)]),
+    ('Entity_enable',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.Entity)]),
 
     ('DomainParticipant_create_publisher',
         check_null, ctypes.POINTER(DDSType.Publisher),
@@ -1202,10 +1197,12 @@ class DDS(object):
             if pd.contents.type_name and pd.contents.type_name not in self._all_topics:
                 if self._initialized:
                     self._all_topics[pd.contents.type_name] = self.get_topic(pd.contents.type_name, sep='::')
-                    self._all_topics[pd.contents.type_name].subscribe(self._all_data_available_cb,
-                                                                      instance_revoked_cb=self._all_ir_cb,
-                                                                      liveliness_lost_cb=self._all_ll_cb,
-                                                                      _send_topic_info=True)
+                    self._all_topics[pd.contents.type_name].subscribe(
+                        self._all_data_available_cb,
+                        instance_revoked_cb=self._all_ir_cb,
+                        liveliness_lost_cb=self._all_ll_cb,
+                        _send_topic_info=True
+                    )
                 else:
                     self._all_topics[pd.contents.type_name] = None
 
@@ -1215,6 +1212,7 @@ class DDS(object):
         if not self._data_seq:
             self._data_seq = DDSType.PublicationBuiltinTopicDataSeq()
         self._data_seq.initialize()
+
         if not self._info_seq:
             self._info_seq = DDSType.SampleInfoSeq()
         self._info_seq.initialize()
@@ -1223,6 +1221,7 @@ class DDS(object):
         self.condition = DDSFunc.Entity_get_statuscondition(ctypes.cast(self._publication_dr, ctypes.POINTER(DDSType.Entity)))
         self.waitset.attach_condition(ctypes.cast(self.condition, ctypes.POINTER(DDSType.Condition)))
         self.condition.set_enabled_statuses(DDS_DATA_AVAILABLE_STATUS)
+
         if not self._condition_seq:
             self._condition_seq = DDSType.ConditionSeq()
         self._condition_seq.initialize()
