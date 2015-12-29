@@ -10,6 +10,7 @@ import collections
 import uuid
 import platform
 import threading
+import multiprocessing
 
 def libname(name):
     if platform.uname()[0] == 'Windows':
@@ -150,8 +151,8 @@ def check_true(result, func, arguments):
 
 # Function and structure accessors
 
-def get(name, type):
-    return ctypes.cast(getattr(_ddsc_lib, 'DDS_' + name), ctypes.POINTER(type)).contents
+def get(name, data_type):
+    return ctypes.cast(getattr(_ddsc_lib, 'DDS_' + name), ctypes.POINTER(data_type)).contents
 
 @apply
 class DDSFunc(object):
@@ -451,20 +452,26 @@ map(_define_func, [
 
     ('InstanceHandleSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+    ('InstanceHandleSeq_finalize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
     ('InstanceHandleSeq_get_length',
         None, DDS_Long, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+    ('InstanceHandleSeq_get_length',
+        None, DDS_Long, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
+    ('InstanceHandleSeq_get_reference',
+        check_null, ctypes.POINTER(DDSType.InstanceHandle_t), [ctypes.POINTER(DDSType.InstanceHandleSeq), DDS_Long]),
 
     ('ParticipantBuiltinTopicDataDataReader_narrow',
         check_null, ctypes.POINTER(DDSType.ParticipantBuiltinTopicDataDataReader),
         [ctypes.POINTER(DDSType.DataReader)]),
 
-    ('PublicationBuiltinTopicDataDataReader_narrow',
-        check_null, ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader),
-        [ctypes.POINTER(DDSType.DataReader)]),
     ('SubscriptionBuiltinTopicDataDataReader_narrow',
         check_null, ctypes.POINTER(DDSType.SubscriptionBuiltinTopicDataDataReade),
         [ctypes.POINTER(DDSType.DataReader)]),
 
+    ('PublicationBuiltinTopicDataDataReader_narrow',
+        check_null, ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader),
+        [ctypes.POINTER(DDSType.DataReader)]),
     ('PublicationBuiltinTopicDataDataReader_take',
         check_code, DDS_ReturnCode_t,
         [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader), ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq), DDS_Long, DDS_SampleStateMask, DDS_ViewStateMask, DDS_InstanceStateMask]),
@@ -473,17 +480,15 @@ map(_define_func, [
         [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataDataReader), ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq), ctypes.POINTER(DDSType.SampleInfoSeq)]),
     ('PublicationBuiltinTopicDataSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq)]),
-
-
-    ('InstanceHandleSeq_get_length',
-        None, DDS_Long, [ctypes.POINTER(DDSType.InstanceHandleSeq)]),
-    ('InstanceHandleSeq_get_reference',
-        check_null, ctypes.POINTER(DDSType.InstanceHandle_t), [ctypes.POINTER(DDSType.InstanceHandleSeq), DDS_Long]),
-
+    ('PublicationBuiltinTopicDataSeq_finalize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq)]),
     ('PublicationBuiltinTopicDataSeq_get_length',
         None, DDS_Long, [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq)]),
     ('PublicationBuiltinTopicDataSeq_get_reference',
         check_null, ctypes.POINTER(DDSType.PublicationBuiltinTopicData), [ctypes.POINTER(DDSType.PublicationBuiltinTopicDataSeq), DDS_Long]),
+
+
+
 
 
     ('Publisher_create_datawriter',
@@ -615,12 +620,16 @@ map(_define_func, [
 
     ('DynamicDataSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
+    ('DynamicDataSeq_finalize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
     ('DynamicDataSeq_get_length',
         None, DDS_Long, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
     ('DynamicDataSeq_get_reference',
         check_null, ctypes.POINTER(DDSType.DynamicData), [ctypes.POINTER(DDSType.DynamicDataSeq), DDS_Long]),
 
     ('SampleInfoSeq_initialize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.SampleInfoSeq)]),
+    ('SampleInfoSeq_finalize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.SampleInfoSeq)]),
     ('SampleInfoSeq_get_length',
         None, DDS_Long, [ctypes.POINTER(DDSType.SampleInfoSeq)]),
@@ -652,6 +661,8 @@ map(_define_func, [
         [ctypes.POINTER(DDSType.StatusCondition), DDS_Long]),
 
     ('ConditionSeq_initialize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.ConditionSeq)]),
+    ('ConditionSeq_finalize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.ConditionSeq)]),
 ])
 
@@ -739,7 +750,7 @@ def unpack_dd_member(dd, member_name=None, member_id=DDS_DYNAMIC_DATA_MEMBER_ID_
             DDSFunc.Wstring_free(inner)
     elif kind == TCKind.ENUM:
         val = ctypes.c_uint()
-        dd.get_ulong(ctypes.byref(val), member_name, member_id)  # isn't programming via side-effects gross?
+        dd.get_ulong(ctypes.byref(val), member_name, member_id)
         return tc.member_name(val, ex())
     else:
         raise NotImplementedError(kind)
@@ -772,6 +783,8 @@ class TopicSuper(object):
         self.data_type = data_type
         self._related_topic = related_topic
         self._filter_expression = filter_expression
+        self._data_seq = None
+        self._info_seq = None
 
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
         self._type_name = self.data_type._get_typecode().name(ex())
@@ -861,45 +874,52 @@ class TopicSuper(object):
             topic._disable_listener()
 
     def _on_data_available(self, listener_data, datareader):
-        data_seq = DDSType.DynamicDataSeq()
-        data_seq.initialize()
-        info_seq = DDSType.SampleInfoSeq()
-        info_seq.initialize()
+        if not self._data_seq:
+            self._data_seq = DDSType.DynamicDataSeq()
+        self._data_seq.initialize()
+        if not self._info_seq:
+            self._info_seq = DDSType.SampleInfoSeq()
+        self._info_seq.initialize()
+
         try:
             self._dyn_narrowed_reader.take(
-                ctypes.byref(data_seq),
-                ctypes.byref(info_seq),
+                ctypes.byref(self._data_seq),
+                ctypes.byref(self._info_seq),
                 DDS_LENGTH_UNLIMITED,
                 get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
                 get('ANY_VIEW_STATE', DDS_ViewStateMask),
                 get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
             )
 
-            for i in xrange(data_seq.get_length()):
-                info = info_seq.get_reference(i).contents
+            for i in xrange(self._data_seq.get_length()):
+                info = self._info_seq.get_reference(i).contents
+
                 if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
                     if self._send_topic_info: self._instance_revoked_cb(self._type_name)
                     else: self._instance_revoked_cb()
+
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
                     if self._send_topic_info: self._liveliness_lost_cb(self._type_name)
                     else: self._liveliness_lost_cb()
+
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
-                    data = unpack_dd(data_seq.get_reference(i))
+                    data = unpack_dd(self._data_seq.get_reference(i))
+
                     if self._send_topic_info:
                         data = {'name': self._type_name, 'data': data}
                     self._data_available_callback(data)
 
         except NoDataError:
             return
-        except Exception, e:
-            raise e
+
         finally:
-            self._dyn_narrowed_reader.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
+            self._dyn_narrowed_reader.return_loan(ctypes.byref(self._data_seq), ctypes.byref(self._info_seq))
+            self._data_seq.finalize()
+            self._info_seq.finalize()
 
     def _generate_instance(self):
         sample = self._support.create_data()
         instance = unpack_dd(sample)
-        # self._support.print_data(sample)
         self._support.delete_data(sample)
         return instance
 
@@ -1015,17 +1035,18 @@ class Topic(TopicSuper):
         [1] https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm
         """
 
-        self._send_topic_info = _send_topic_info
 
         if filter_expression:
             filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression)
             filtered_topic._instance_revoked_cb = instance_revoked_cb
             filtered_topic._liveliness_lost_cb  = liveliness_lost_cb
+            filtered_topic._send_topic_info     = _send_topic_info
             filtered_topic.add_data_available_callback(data_available_callback)
             self._filtered_topics[filtered_topic.filter_name] = filtered_topic
             _filtered_topic_refs[self.name].append(filtered_topic)
             return filtered_topic
         else:
+            self._send_topic_info     = _send_topic_info
             self._instance_revoked_cb = instance_revoked_cb
             self._liveliness_lost_cb  = liveliness_lost_cb
             self.add_data_available_callback(data_available_callback)
@@ -1070,13 +1091,15 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
         instance_revoked_cb     (function)           The function to call if the topic instance is revoked. (Optional)
                                                      The function will be called with the topic name.
     """
-
+    import gc
+    gc.disable()
     d = DDS(topic_libraries,
             _get_all=True,
             _all_data_available_cb=data_available_callback,
             _all_ir_cb=instance_revoked_cb,
             _all_ll_cb=liveliness_lost_cb
     )
+    return d
 
 class DDS(object):
     """
@@ -1092,9 +1115,14 @@ class DDS(object):
     def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0,
                  _get_all=False, _all_data_available_cb=None, _all_ir_cb=None, _all_ll_cb=None):
 
-        self._initialized = False
+        self._data_seq      = None
+        self._info_seq      = None
+        self._condition_seq = None
+        self._initialized   = False
+
         if qos_library and qos_profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
+
         self._participant = participant = DDSFunc.DomainParticipantFactory_get_instance().create_participant(
             domain_id,
             get('PARTICIPANT_QOS_DEFAULT', DDSType.DomainParticipantQos),
@@ -1107,8 +1135,15 @@ class DDS(object):
             self._all_ir_cb             = _all_ir_cb             or (lambda x: None)
             self._all_ll_cb             = _all_ll_cb             or (lambda x: None)
             self._all_topics = {}
+            self._builtin_subscriber = self._participant.get_builtin_subscriber()
+            self._publication_dr = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(self._builtin_subscriber.lookup_datareader('DCPSPublication'))
+
+            # I don't know why, but this initialization needs to happen here on Windows. Otherwise nddsc segfaults when the waitset fires.
+            if type(topic_libraries) != list: topic_libraries = [topic_libraries]
+            self._topics = Library(map(libname, topic_libraries))
+
             threading.Thread(target=self._get_all_topics).start()
-            time.sleep(0.5)
+
 
         self._publisher = publisher = self._participant.create_publisher(
             get('PUBLISHER_QOS_DEFAULT', DDSType.PublisherQos),
@@ -1123,8 +1158,9 @@ class DDS(object):
         )
 
         self._open_topics = weakref.WeakValueDictionary()
-        if type(topic_libraries) != list: topic_libraries = [topic_libraries]
-        self._topics = Library(map(libname, topic_libraries))
+        if not _get_all:
+            if type(topic_libraries) != list: topic_libraries = [topic_libraries]
+            self._topics = Library(map(libname, topic_libraries))
 
         def _cleanup(ref):
             participant.delete_subscriber(subscriber)
@@ -1135,10 +1171,10 @@ class DDS(object):
 
             _refs.remove(ref)
         _refs.add(weakref.ref(self, _cleanup))
+
         if _get_all:
             for topic in self._all_topics:
                 self._all_topics[topic] = self.get_topic(topic, sep='::')
-                print('subcribing to', topic)
                 self._all_topics[topic].subscribe(
                     self._all_data_available_cb,
                     instance_revoked_cb=self._all_ir_cb,
@@ -1148,55 +1184,62 @@ class DDS(object):
         self._initialized = True
 
 
+    def _all_topics_data_available(self):
+
+        self._data_seq.initialize()
+        self._info_seq.initialize()
+        self._publication_dr.take(
+            ctypes.byref(self._data_seq),
+            ctypes.byref(self._info_seq),
+            DDS_LENGTH_UNLIMITED,
+            get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
+            get('ANY_VIEW_STATE', DDS_ViewStateMask),
+            get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
+        )
+
+        for i in xrange(self._data_seq.get_length()):
+            pd = self._data_seq.get_reference(i)
+            if pd.contents.type_name and pd.contents.type_name not in self._all_topics:
+                if self._initialized:
+                    self._all_topics[pd.contents.type_name] = self.get_topic(pd.contents.type_name, sep='::')
+                    self._all_topics[pd.contents.type_name].subscribe(self._all_data_available_cb,
+                                                                      instance_revoked_cb=self._all_ir_cb,
+                                                                      liveliness_lost_cb=self._all_ll_cb,
+                                                                      _send_topic_info=True)
+                else:
+                    self._all_topics[pd.contents.type_name] = None
+
+
     def _get_all_topics(self):
 
-        builtin_subscriber = self._participant.get_builtin_subscriber()
-        publication_dr  = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(builtin_subscriber.lookup_datareader('DCPSPublication'))
+        if not self._data_seq:
+            self._data_seq = DDSType.PublicationBuiltinTopicDataSeq()
+        self._data_seq.initialize()
+        if not self._info_seq:
+            self._info_seq = DDSType.SampleInfoSeq()
+        self._info_seq.initialize()
 
-        data_seq = DDSType.PublicationBuiltinTopicDataSeq()
-        data_seq.initialize()
-        info_seq = DDSType.SampleInfoSeq()
-        info_seq.initialize()
-
-        waitset   = DDSFunc.WaitSet_new()
-        condition = DDSFunc.Entity_get_statuscondition(ctypes.cast(publication_dr, ctypes.POINTER(DDSType.Entity)))
-        waitset.attach_condition(ctypes.cast(condition, ctypes.POINTER(DDSType.Condition)))
-        condition.set_enabled_statuses(DDS_DATA_AVAILABLE_STATUS)
-        condition_seq = DDSType.ConditionSeq()
-        condition_seq.initialize()
+        self.waitset = DDSFunc.WaitSet_new()
+        self.condition = DDSFunc.Entity_get_statuscondition(ctypes.cast(self._publication_dr, ctypes.POINTER(DDSType.Entity)))
+        self.waitset.attach_condition(ctypes.cast(self.condition, ctypes.POINTER(DDSType.Condition)))
+        self.condition.set_enabled_statuses(DDS_DATA_AVAILABLE_STATUS)
+        if not self._condition_seq:
+            self._condition_seq = DDSType.ConditionSeq()
+        self._condition_seq.initialize()
 
         while True:
-            waitset.wait(
-                ctypes.byref(condition_seq),
+            self.waitset.wait(
+                ctypes.byref(self._condition_seq),
                 ctypes.byref(DDSType.Duration_t(DDS_DURATION_INFINITE_SEC, DDS_DURATION_INFINITE_NSEC))
             )
             try:
-                publication_dr.take(
-                    ctypes.byref(data_seq),
-                    ctypes.byref(info_seq),
-                    DDS_LENGTH_UNLIMITED,
-                    get('ANY_SAMPLE_STATE', DDS_SampleStateMask),
-                    get('ANY_VIEW_STATE', DDS_ViewStateMask),
-                    get('ANY_INSTANCE_STATE', DDS_InstanceStateMask)
-                )
+                self._all_topics_data_available()
 
-                for i in xrange(data_seq.get_length()):
-                    pd = data_seq.get_reference(i)
-                    if pd.contents.type_name and pd.contents.type_name not in self._all_topics:
-                        # print('IN _get_all_topics:', pd.contents.type_name)
-                        if self._initialized:
-                            self._all_topics[pd.contents.type_name] = self.get_topic(pd.contents.type_name, sep='::')
-                            self._all_topics[pd.contents.type_name].subscribe(self._all_data_available_cb,
-                                                                              instance_revoked_cb=self._all_ir_cb,
-                                                                              liveliness_lost_cb=self._all_ll_cb,
-                                                                              _send_topic_info=True)
-                        else:
-                            self._all_topics[pd.contents.type_name] = None
-
-            except NoDataError:
-                return
             finally:
-                publication_dr.return_loan(ctypes.byref(data_seq), ctypes.byref(info_seq))
+                self._publication_dr.return_loan(ctypes.byref(self._data_seq), ctypes.byref(self._info_seq))
+                self._info_seq.finalize()
+                self._data_seq.finalize()
+
 
     def get_topic(self, qualified_name, sep='.'):
         name = qualified_name.split(sep)[-1]
@@ -1229,6 +1272,7 @@ class LibraryType(object):
                 f.restype = ctypes.POINTER(DDSType.TypeCode)
                 f.errcheck = check_null
                 return f()
+        raise ValueError("Couldn't find the topic in the provided libraries")
 
 class Library(object):
     def __init__(self, so_paths):
