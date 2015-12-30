@@ -1086,8 +1086,6 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
         instance_revoked_cb     (function)           The function to call if the topic instance is revoked. (Optional)
                                                      The function will be called with the topic name.
     """
-    import gc
-    gc.disable()
     d = DDS(topic_libraries,
             _get_all=True,
             _all_data_available_cb=data_available_callback,
@@ -1095,6 +1093,7 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
             _all_ll_cb=liveliness_lost_cb
     )
     return d
+
 
 class DDS(object):
     """
