@@ -900,13 +900,13 @@ class TopicSuper(object):
                 sample = self._data_seq.get_reference(i)
 
                 if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
-                    self._dyn_narrowed_reader.get_key_value(ctypes.byref(sample), ctypes.byref(info.instance_handle))
+                    self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
                     if self._send_topic_info: self._instance_revoked_cb(self._type_name, data)
                     else: self._instance_revoked_cb(data)
 
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
-                    self._dyn_narrowed_reader.get_key_value(ctypes.byref(sample), ctypes.byref(info.instance_handle))
+                    self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
                     if self._send_topic_info: self._liveliness_lost_cb(self._type_name, data)
                     else: self._liveliness_lost_cb(data)
