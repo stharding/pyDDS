@@ -888,18 +888,17 @@ class TopicSuper(object):
 
             for i in xrange(self._data_seq.get_length()):
                 info = self._info_seq.get_reference(i).contents
+                data = unpack_dd(self._data_seq.get_reference(i))
 
                 if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
-                    if self._send_topic_info: self._instance_revoked_cb(self._type_name)
-                    else: self._instance_revoked_cb()
+                    if self._send_topic_info: self._instance_revoked_cb(self._type_name, data)
+                    else: self._instance_revoked_cb(data)
 
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
-                    if self._send_topic_info: self._liveliness_lost_cb(self._type_name)
-                    else: self._liveliness_lost_cb()
+                    if self._send_topic_info: self._liveliness_lost_cb(self._type_name, data)
+                    else: self._liveliness_lost_cb(data)
 
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
-                    data = unpack_dd(self._data_seq.get_reference(i))
-
                     if self._send_topic_info:
                         data = {'name': self._type_name, 'data': data}
                     self._data_available_callback(data)
