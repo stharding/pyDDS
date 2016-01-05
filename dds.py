@@ -587,6 +587,9 @@ map(_define_func, [
         [ctypes.POINTER(DDSType.DynamicDataWriter), ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
 
 
+    ('DynamicDataReader_get_key_value',
+        check_code, DDS_ReturnCode_t,
+        [ctypes.POINTER(DDSType.DynamicDataReader), ctypes.POINTER(DDSType.DynamicData), ctypes.POINTER(DDSType.InstanceHandle_t)]),
     ('DynamicDataReader_narrow',
         check_null, ctypes.POINTER(DDSType.DynamicDataReader),
         [ctypes.POINTER(DDSType.DataReader)]),
