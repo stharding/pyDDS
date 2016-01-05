@@ -688,7 +688,7 @@ def write_into_dd_member(obj, dd, member_name=None, member_id=DDS_DYNAMIC_DATA_M
     elif kind == TCKind.WSTRING:
         dd.set_wstring(member_name, member_id, obj)
     elif kind == TCKind.ENUM:
-        assert isinstance(obj, str)
+        assert isinstance(obj, str) or isinstance(obj, unicode)
         index = tc.find_member_by_name(obj, ex())
         dd.set_ulong(member_name, member_id, index)
     else:
@@ -1086,13 +1086,12 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
         instance_revoked_cb     (function)           The function to call if the topic instance is revoked. (Optional)
                                                      The function will be called with the topic name.
     """
-    d = DDS(topic_libraries,
+    return DDS(topic_libraries,
             _get_all=True,
             _all_data_available_cb=data_available_callback,
             _all_ir_cb=instance_revoked_cb,
             _all_ll_cb=liveliness_lost_cb
     )
-    return d
 
 
 class DDS(object):
@@ -1114,6 +1113,9 @@ class DDS(object):
         self._condition_seq = None
         self._initialized   = False
 
+        if type(topic_libraries) != list:
+            topic_libraries = [topic_libraries]
+
         if qos_library and qos_profile:
             DDSFunc.DomainParticipantFactory_get_instance().set_default_participant_qos_with_profile(qos_library, qos_profile)
 
@@ -1133,7 +1135,6 @@ class DDS(object):
             self._publication_dr = DDSFunc.PublicationBuiltinTopicDataDataReader_narrow(self._builtin_subscriber.lookup_datareader('DCPSPublication'))
 
             # I don't know why, but this initialization needs to happen here on Windows. Otherwise nddsc segfaults when the waitset fires.
-            if type(topic_libraries) != list: topic_libraries = [topic_libraries]
             self._topics = Library(map(libname, topic_libraries))
 
             threading.Thread(target=self._get_all_topics).start()
@@ -1153,7 +1154,6 @@ class DDS(object):
 
         self._open_topics = weakref.WeakValueDictionary()
         if not _get_all:
-            if type(topic_libraries) != list: topic_libraries = [topic_libraries]
             self._topics = Library(map(libname, topic_libraries))
 
         def _cleanup(ref):
