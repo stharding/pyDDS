@@ -639,6 +639,12 @@ map(_define_func, [
 
     ('StringSeq_from_array',
         None, DDS_Boolean, [ctypes.POINTER(DDSType.StringSeq), ctypes.POINTER(ctypes.c_char_p), DDS_Long]),
+    ('StringSeq_initialize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.StringSeq)]),
+    ('StringSeq_finalize',
+        check_true, DDS_Boolean, [ctypes.POINTER(DDSType.StringSeq)]),
+
+
 
     ('WaitSet_new', None, ctypes.POINTER(DDSType.WaitSet), []),
     ('WaitSet_attach_condition',
@@ -965,7 +971,9 @@ class FilteredTopic(TopicSuper):
     def _create_topic(self):
         self.filter_name = str(uuid.uuid4())
         self._filter_params = DDSType.StringSeq()
-        DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)  ## TODO: add in full support for parameterized filters
+        self._filter_params.initialize()
+        # self._filter_params.from_array((ctypes.c_char_p * 0)(), 0)
+        # DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)  ## TODO: add in full support for parameterized filters
 
         return self._dds._participant.create_contentfilteredtopic(
             self.filter_name,
