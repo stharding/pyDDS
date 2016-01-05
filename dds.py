@@ -894,17 +894,22 @@ class TopicSuper(object):
 
             for i in xrange(self._data_seq.get_length()):
                 info = self._info_seq.get_reference(i).contents
-                data = unpack_dd(self._data_seq.get_reference(i))
+                sample = self._data_seq.get_reference(i)
 
                 if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
+                    self._dyn_narrowed_reader.get_key_value(ctypes.byref(sample), ctypes.byref(info.instance_handle))
+                    data = unpack_dd(sample)
                     if self._send_topic_info: self._instance_revoked_cb(self._type_name, data)
                     else: self._instance_revoked_cb(data)
 
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
+                    self._dyn_narrowed_reader.get_key_value(ctypes.byref(sample), ctypes.byref(info.instance_handle))
+                    data = unpack_dd(sample)
                     if self._send_topic_info: self._liveliness_lost_cb(self._type_name, data)
                     else: self._liveliness_lost_cb(data)
 
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
+                    data = unpack_dd(sample)
                     if self._send_topic_info:
                         data = {'name': self._type_name, 'data': data}
                     self._data_available_callback(data)
@@ -971,6 +976,7 @@ class FilteredTopic(TopicSuper):
     def _create_topic(self):
         self.filter_name = str(uuid.uuid4())
         self._filter_params = DDSType.StringSeq()
+        ## calling initialize or from_array causes a segfault on windows. There doesn't seem to be any problem with not making these calls ...
         # self._filter_params.initialize()
         # self._filter_params.from_array((ctypes.c_char_p * 0)(), 0)
         # DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)  ## TODO: add in full support for parameterized filters
