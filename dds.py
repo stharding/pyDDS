@@ -971,7 +971,7 @@ class FilteredTopic(TopicSuper):
     def _create_topic(self):
         self.filter_name = str(uuid.uuid4())
         self._filter_params = DDSType.StringSeq()
-        self._filter_params.initialize()
+        # self._filter_params.initialize()
         # self._filter_params.from_array((ctypes.c_char_p * 0)(), 0)
         # DDSFunc.StringSeq_from_array(self._filter_params, (ctypes.c_char_p * 0)(), 0)  ## TODO: add in full support for parameterized filters
 
