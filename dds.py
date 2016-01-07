@@ -911,14 +911,14 @@ class TopicSuper(object):
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
-                    if self._send_topic_info: threading.Thread(target=self._liveliness_lost_cb, args=(self._type_name, data))
-                    else:                     threading.Thread(target=self._liveliness_lost_cb, args=(data,))
+                    if self._send_topic_info: threading.Thread(target=self._liveliness_lost_cb, args=(self._type_name, data)).start()
+                    else:                     threading.Thread(target=self._liveliness_lost_cb, args=(data,)).start()
 
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
                     data = unpack_dd(sample)
                     if self._send_topic_info:
                         data = {'name': self._type_name, 'data': data}
-                    threading.Thread(target=self._data_available_callback, args=(data,))
+                    threading.Thread(target=self._data_available_callback, args=(data,)).start()
 
         except NoDataError:
             return
