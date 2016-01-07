@@ -790,7 +790,8 @@ class TopicSuper(object):
         self._data_seq = None
         self._info_seq = None
 
-        self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(), get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
+        self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(),
+                                    get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
         self._type_name = self.data_type._get_typecode().name(ex())
         self._support.register_type(self._dds._participant, self._type_name)
 
@@ -862,15 +863,15 @@ class TopicSuper(object):
             self._enable_listener()
         self._data_available_callback = cb
 
-    def unsubscribe(self, topic):
+    def unsubscribe(self, topic=self):
 
         """
         Cancels a subscription made with `subscribe' with a given topic.
 
         Parameters:
-            topic (Topic or ContentFilteredTopic) the topic to cancel the
-                                                  subscription on. This value
-                                                  is returned by `subscribe'
+            topic (Topic or ContentFilteredTopic) Optional. The topic to cancel the
+                                                  subscription on. This value is returned
+                                                  by `subscribe'. Defaults to self.
         """
 
         topic._data_available_callback = None
@@ -899,23 +900,25 @@ class TopicSuper(object):
                 info = self._info_seq.get_reference(i).contents
                 sample = self._data_seq.get_reference(i)
 
+                # calling the callbacks in a separate thread. This may cause performance issues.
+
                 if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
-                    if self._send_topic_info: self._instance_revoked_cb(self._type_name, data)
-                    else: self._instance_revoked_cb(data)
+                    if self._send_topic_info: threading.Thread(target=self._instance_revoked_cb, args=(self._type_name, data)).start()
+                    else:                     threading.Thread(target=self._instance_revoked_cb, args=(data,)).start()
 
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
-                    if self._send_topic_info: self._liveliness_lost_cb(self._type_name, data)
-                    else: self._liveliness_lost_cb(data)
+                    if self._send_topic_info: threading.Thread(target=self._liveliness_lost_cb, args=(self._type_name, data))
+                    else:                     threading.Thread(target=self._liveliness_lost_cb, args=(data,))
 
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
                     data = unpack_dd(sample)
                     if self._send_topic_info:
                         data = {'name': self._type_name, 'data': data}
-                    self._data_available_callback(data)
+                    threading.Thread(target=self._data_available_callback, args=(data,))
 
         except NoDataError:
             return
