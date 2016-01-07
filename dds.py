@@ -863,7 +863,7 @@ class TopicSuper(object):
             self._enable_listener()
         self._data_available_callback = cb
 
-    def unsubscribe(self, topic=self):
+    def unsubscribe(self, topic=None):
 
         """
         Cancels a subscription made with `subscribe' with a given topic.
@@ -873,7 +873,7 @@ class TopicSuper(object):
                                                   subscription on. This value is returned
                                                   by `subscribe'. Defaults to self.
         """
-
+        if not topic: topic = self
         topic._data_available_callback = None
         if topic._listener:
             topic._disable_listener()
