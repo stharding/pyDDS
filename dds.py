@@ -875,6 +875,8 @@ class TopicSuper(object):
         """
         if not topic: topic = self
         topic._data_available_callback = None
+        topic._instance_revoked_cb     = None
+        topic._liveliness_lost_cb      = None
         if topic._listener:
             topic._disable_listener()
 
