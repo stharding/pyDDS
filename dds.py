@@ -838,10 +838,8 @@ class TopicSuper(object):
 
     def _enable_listener(self):
         assert self._listener is None
-        self._listener = DDSType.DataReaderListener(
-            on_data_available=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._on_data_available)
-            # on_liveliness_changed=ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader), ctypes.POINTER(DDSType.LivelinessChangedStatus))(self._on_liveliness_changed)
-        )
+        self._cfunctype_data_available = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(DDSType.DataReader))(self._on_data_available)
+        self._listener = DDSType.DataReaderListener(on_data_available=self._cfunctype_data_available)
         self._reader.set_listener(self._listener, DATA_AVAILABLE_STATUS)
         _outside_refs.add(self) # really want self._listener, but this does the same thing
 
