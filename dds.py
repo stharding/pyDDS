@@ -853,7 +853,8 @@ class TopicSuper(object):
         assert self._listener is not None
         self._reader.set_listener(None, 0)
         self._listener = None
-        _outside_refs.remove(self)
+        if self in _outside_refs:
+            _outside_refs.remove(self)
 
     def add_data_available_callback(self, cb):
         '''Warning: callback is called back in another thread!'''
