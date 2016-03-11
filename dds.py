@@ -781,7 +781,7 @@ _refs = set()
 _filtered_topic_refs = {}
 
 class TopicSuper(object):
-    def __init__(self, dds, name, data_type, related_topic=None, filter_expression=None):
+    def __init__(self, dds, name, data_type, related_topic=None, filter_expression=None, _base_topic=None):
         self._dds = dds
         self.name = name
         self.data_type = data_type
@@ -789,6 +789,7 @@ class TopicSuper(object):
         self._filter_expression = filter_expression
         self._data_seq = None
         self._info_seq = None
+        self._base_topic = _base_topic  # This is to prevent the base topic getting garbage collected for filtered topic.
 
         self._support = support = DDSFunc.DynamicDataTypeSupport_new(self.data_type._get_typecode(),
                                     get('DYNAMIC_DATA_TYPE_PROPERTY_DEFAULT', DDSType.DynamicDataTypeProperty_t))
@@ -969,8 +970,8 @@ class TopicSuper(object):
             self._support.delete_data(sample)
 
 class FilteredTopic(TopicSuper):
-    def __init__(self, dds, name, data_type, related_topic, filter_expression):
-        super(FilteredTopic, self).__init__(dds, name, data_type, related_topic, filter_expression)
+    def __init__(self, dds, name, data_type, related_topic, filter_expression, base_topic):
+        super(FilteredTopic, self).__init__(dds, name, data_type, related_topic, filter_expression, base_topic)
 
     def _create_writer(self):
         return self._dds._publisher.create_datawriter(
@@ -1052,7 +1053,7 @@ class Topic(TopicSuper):
 
 
         if filter_expression:
-            filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression)
+            filtered_topic = FilteredTopic(self._dds, self.name, self.data_type, self._topic, filter_expression, self)
             filtered_topic._instance_revoked_cb = instance_revoked_cb
             filtered_topic._liveliness_lost_cb  = liveliness_lost_cb
             filtered_topic._send_topic_info     = _send_topic_info
