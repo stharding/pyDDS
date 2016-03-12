@@ -1261,6 +1261,21 @@ class DDS(object):
 
 
     def get_topic(self, qualified_name, sep='.'):
+
+        """
+        Gets a topic instance given the fully qualified topic name.
+        e.g. fully.qualified.name.topic_name
+        or   fully::qualified::name::topic_name
+
+        If the seperator for the namespace of the topic is not a '.' then you must
+        specify the sep parameter.
+
+        Parameters:
+            qualified_name (String) Required. The full name of the topic (including the namespace)
+            sep            (String) Optional. The seperator for the namespace
+        Returns: (Topic)
+        """
+
         name = qualified_name.split(sep)[-1]
         data_type = getattr(self._topics, qualified_name.replace(sep, '_'))
         return self._get_topic(name, data_type)
