@@ -5,10 +5,10 @@ Overview
 --------
 
 To use this wrapper, you must compile your generated topics (the output of
-`rtiddsgen`) into a shared library. This will be a .so on Linux, .DLL on windows
-and .dylib on OS X. The location of this library and the RTI libraries `nddsc`
-and `nddscore` must be in the library search path (LD_LIBRARY_PATH on Linux,
-PATH on windows, and DYLD_LIBRARY_PATH on OS X).
+`rtiddsgen`) into a shared library. This will be a `.so` on Linux, `.DLL` on
+windows and `.dylib` on OS X. The location of this library and the RTI libraries
+`nddsc` and `nddscore` must be in the library search path (`LD_LIBRARY_PATH` on
+Linux, `PATH` on windows, and `DYLD_LIBRARY_PATH` on OS X).
 
 Use
 ---
@@ -82,7 +82,7 @@ If desired, you can also specify a few other options:
    throwing out the ones you don't want, you can tell DDS to only send you samples
    that match a specified filter. For example, say you only want samples that
    have `mode == mode_2`. This can be accomplished by specifying the keyword
-   argument `filter_expression="mode MATCH 'mode_3'"`. see [the docs](https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm)
+   argument `filter_expression="mode MATCH 'mode_3'"`. See [the docs](https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm)
    for more details.
 
 Subscriptions can also be canceled by calling `topic.unsubscribe()`
