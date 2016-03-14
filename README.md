@@ -67,22 +67,25 @@ while True:
 
 That's all there is to basic topic subscription! All data samples are delivered
 to the callback as a python dictionary. Also of note: the callback will occur in
-a separate thread, so you must take that into consideration for any non thread-safe
-operations.
+a separate thread, so you must take that into consideration for any non
+thread-safe operations.
 
 If desired, you can also specify a few other options:
 
  - **instance revoked** A publisher can revoke a topic instance. To be notified
-   of these events, specify a callback with the keyword argument `instance_revoked_cb`
- - **liveliness lost** If a publisher goes down, or the network connection fails
-   DDS can notify subscribers that a publisher seems to have gone down. To be
-   notified of this condition, specify the keyword argument `liveliness_lost_cb`
+   of these events, specify a callback with the keyword argument
+   `instance_revoked_cb`
+ - **liveliness lost** If a publisher goes down, or the network connection
+   fails, DDS can notify subscribers that a publisher seems to have gone down.
+   To be notified of this condition, specify the keyword argument
+   `liveliness_lost_cb`
  - **content filtering** Sometimes you are only interested in topic data that
    matches some condition. Instead of examining all the topic data samples and
-   throwing out the ones you don't want, you can tell DDS to only send you samples
-   that match a specified filter. For example, say you only want samples that
-   have `mode == mode_2`. This can be accomplished by specifying the keyword
-   argument `filter_expression="mode MATCH 'mode_3'"`. See [the docs](https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm)
+   throwing out the ones you don't want, you can tell DDS to only send you
+   samples that match a specified filter. For example, say you only want samples
+   that have `mode == mode_2`. This can be accomplished by specifying the
+   keyword argument `filter_expression="mode MATCH 'mode_3'"`. See
+   [the docs](https://community.rti.com/static/documentation/connext-dds/5.2.0/doc/manuals/connext_dds/html_files/RTI_ConnextDDS_CoreLibraries_UsersManual/Content/UsersManual/SQL_Filter_Expression_Notation.htm)
    for more details.
 
 Subscriptions can also be canceled by calling `topic.unsubscribe()`
