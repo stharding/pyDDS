@@ -107,4 +107,26 @@ sample = {
 topic.publish(sample)
 ```
 
+The dictionary does not have to be complete. i.e. it can be sparsely specified.
+
+This:
+
+```python
+sample = {
+    'name': 'my key name',
+    'mode': 'mode_2'
+}
+```
+
+is a valid topic sample that can be successfully published. If topic fields are
+not specified, they will be filled in with default values depending on the type.
+Strings will be populated with the empty string, number types will get zero,
+enums will get the first enum value, etc.
+
+A publisher can also 'revoke' a topic. If a topic has keyed fields (the
+`// @key` decoration in the IDL) then there can be multiple instances of the
+topic on the DDS but simultaneously. To revoke a particular instance, call
+`topic.dispose(sample)` where sample has the keyed fields specified to match the
+topic instance you wish to revoke.
+
 For more detailed documentation, see the inline docs in `dds.py`
