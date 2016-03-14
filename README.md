@@ -97,7 +97,7 @@ the structure of the topic. e.g.:
 import dds
 
 dds_instance = dds.DDS('my_topics')
-topic = dds_instance.get_topic('my_custom_topic')
+topic = dds_instance.get_topic('my.dds.my_custom_topic')
 
 sample = {
     'name': 'my key name',
