@@ -74,7 +74,7 @@ If desired, you can also specify a few other options:
 
  - **instance revoked** A publisher can revoke a topic instance. To be notified
    of these events, specify a callback with the keyword argument `instance_revoked_cb`
- - **liveliness_lost** If a publisher goes down, or the network connection fails
+ - **liveliness lost** If a publisher goes down, or the network connection fails
    DDS can notify subscribers that a publisher seems to have gone down. To be
    notified of this condition, specify the keyword argument `liveliness_lost_cb`
  - **content filtering** Sometimes you are only interested in topic data that
