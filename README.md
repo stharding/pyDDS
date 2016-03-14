@@ -72,7 +72,6 @@ operations.
 
 If desired, you can also specify a few other options:
 
-instance_revoked_cb=None, liveliness_lost_cb=None, filter_expression=None, _send_topic_info=False):
  - **instance revoked** A publisher can revoke a topic instance. To be notified
    of these events, specify a callback with the keyword argument `instance_revoked_cb`
  - **liveliness_lost** If a publisher goes down, or the network connection fails
