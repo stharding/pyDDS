@@ -15,7 +15,7 @@ Use
 
 Lets say you have a topic that looks like:
 
-```
+```C++
 #ifndef MY_DDS
 #define MY_DDS
 
