@@ -838,7 +838,6 @@ class TopicSuper(object):
                 if tc.is_member_key(i, ex()):
                     keys.append(tc.member_name(i, ex()))
 
-            keys.sort()
             return keys
 
         self._keys = get_keys()
@@ -922,7 +921,7 @@ class TopicSuper(object):
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
                     if self._send_topic_info:
-                        data = {'name': self._type_name, 'data': data, 'keys': []}
+                        data = {'name': self._type_name, 'data': data, 'keys': self._keys}
 
                     threading.Thread(target=self._instance_revoked_cb, args=(data,)).start()
 
@@ -930,14 +929,14 @@ class TopicSuper(object):
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
                     if self._send_topic_info:
-                        data = {'name': self._type_name, 'data': data, 'keys': []}
+                        data = {'name': self._type_name, 'data': data, 'keys': self._keys}
 
                     threading.Thread(target=self._liveliness_lost_cb, args=(data,)).start()
 
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
                     data = unpack_dd(sample)
                     if self._send_topic_info:
-                        data = {'name': self._type_name, 'data': data, 'keys': []}
+                        data = {'name': self._type_name, 'data': data, 'keys': self._keys}
 
                     threading.Thread(target=self._data_available_callback, args=(data,)).start()
 
