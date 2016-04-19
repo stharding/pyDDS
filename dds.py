@@ -1088,7 +1088,7 @@ class Topic(TopicSuper):
         finally:
             self._support.delete_data(sample)
 
-def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None):
+def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_revoked_cb=None, liveliness_lost_cb=None, domain_id=0):
     """
     Subscribes to all topics published on the DDS bus.
     It will subscribe to topics that are already publised and
@@ -1106,12 +1106,14 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
         data_available_callback (function)           The function to call with the topic data.
         instance_revoked_cb     (function)           The function to call if the topic instance is revoked. (Optional)
                                                      The function will be called with the topic name.
+        domain_id               (Integer)            The DDS domain ID (defaults to 0)
     """
     return DDS(topic_libraries,
             _get_all=True,
             _all_data_available_cb=data_available_callback,
             _all_ir_cb=instance_revoked_cb,
-            _all_ll_cb=liveliness_lost_cb
+            _all_ll_cb=liveliness_lost_cb,
+            domain_id=domain_id=0
     )
 
 
@@ -1124,7 +1126,7 @@ class DDS(object):
                                    you may pass just the name instead of a list.
         qos_library     (String)   The name of the QOS library to use (Optional)
         qos_profile     (String)   The name of the QOS profile to use (Optional)
-        domain_id       (Integer)  The domain ID (defaults to 0)
+        domain_id       (Integer)  The DDS domain ID (defaults to 0)
     """
     def __init__(self, topic_libraries, qos_library=None, qos_profile=None, domain_id=0,
                  _get_all=False, _all_data_available_cb=None, _all_ir_cb=None, _all_ll_cb=None):
