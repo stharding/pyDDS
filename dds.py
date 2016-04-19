@@ -907,19 +907,24 @@ class TopicSuper(object):
                 if info.instance_state == DDS_NOT_ALIVE_DISPOSED_INSTANCE_STATE and self._instance_revoked_cb:
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
-                    if self._send_topic_info: threading.Thread(target=self._instance_revoked_cb, args=(self._type_name, data)).start()
-                    else:                     threading.Thread(target=self._instance_revoked_cb, args=(data,)).start()
+                    if self._send_topic_info:
+                        data = {'name': self._type_name, 'data': data, 'keys': []}
+
+                    threading.Thread(target=self._instance_revoked_cb, args=(data,)).start()
 
                 if info.instance_state == DDS_NOT_ALIVE_NO_WRITERS_INSTANCE_STATE and self._liveliness_lost_cb:
                     self._dyn_narrowed_reader.get_key_value(sample, ctypes.byref(info.instance_handle))
                     data = unpack_dd(sample)
-                    if self._send_topic_info: threading.Thread(target=self._liveliness_lost_cb, args=(self._type_name, data)).start()
-                    else:                     threading.Thread(target=self._liveliness_lost_cb, args=(data,)).start()
+                    if self._send_topic_info:
+                        data = {'name': self._type_name, 'data': data, 'keys': []}
+
+                    threading.Thread(target=self._liveliness_lost_cb, args=(data,)).start()
 
                 if info.instance_state == DDS_ALIVE_INSTANCE_STATE and info.valid_data and self._data_available_callback:
                     data = unpack_dd(sample)
                     if self._send_topic_info:
-                        data = {'name': self._type_name, 'data': data}
+                        data = {'name': self._type_name, 'data': data, 'keys': []}
+
                     threading.Thread(target=self._data_available_callback, args=(data,)).start()
 
         except NoDataError:
@@ -1094,11 +1099,12 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
     It will subscribe to topics that are already publised and
     will also subscribe to new topics as they are published.
 
-    The provided data_available_callback will be called with a
+    The provided data_available_callback (and optional other callbacks) will be called with a
     dictionary of the form:
         {
             'name': <full topic name>,
             'data': <topic data (this is a dictionary)>
+            'keys': [keyed fields]
         }
 
     Parameters:
