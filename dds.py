@@ -1327,7 +1327,7 @@ class LibraryType(object):
                 f.restype = ctypes.POINTER(DDSType.TypeCode)
                 f.errcheck = check_null
                 return f()
-        raise ValueError("Couldn't find the topic in the provided libraries")
+        raise ValueError("Couldn't find the topic in the provided libraries. Tried to find: " + self.name)
 
 class Library(object):
     def __init__(self, so_paths):
