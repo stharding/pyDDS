@@ -615,6 +615,8 @@ map(_define_func, [
         check_ex, ctypes.POINTER(DDSType.TypeCode), [ctypes.POINTER(DDSType.TypeCode), DDS_UnsignedLong, ctypes.POINTER(DDS_ExceptionCode_t)]),
     ('TypeCode_find_member_by_name',
         check_ex, DDS_UnsignedLong, [ctypes.POINTER(DDSType.TypeCode), ctypes.c_char_p, ctypes.POINTER(DDS_ExceptionCode_t)]),
+    ('TypeCode_is_member_key',
+        check_ex, DDS_Boolean, [ctypes.POINTER(DDSType.TypeCode), DDS_UnsignedLong, ctypes.POINTER(DDS_ExceptionCode_t)]),
 
     ('DynamicDataSeq_initialize',
         check_true, DDS_Boolean, [ctypes.POINTER(DDSType.DynamicDataSeq)]),
@@ -828,6 +830,18 @@ class TopicSuper(object):
                 support.delete()
                 del _filtered_topic_refs[name]
                 _refs.remove(ref)
+
+        def get_keys():
+            keys = []
+            tc = self.data_type._get_typecode()
+            for i in tc.member_count():
+                if tc.is_member_key(i, ex()):
+                    keys.append(tc.member_name(i, ex()))
+
+            keys.sort()
+            return keys
+
+        self._keys = get_keys()
 
         _refs.add(weakref.ref(self, _cleanup))
 
@@ -1119,7 +1133,7 @@ def subscribe_to_all_topics(topic_libraries, data_available_callback, instance_r
             _all_data_available_cb=data_available_callback,
             _all_ir_cb=instance_revoked_cb,
             _all_ll_cb=liveliness_lost_cb,
-            domain_id=domain_id=0
+            domain_id=domain_id
     )
 
 
