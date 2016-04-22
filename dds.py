@@ -834,7 +834,7 @@ class TopicSuper(object):
         def get_keys():
             keys = []
             tc = self.data_type._get_typecode()
-            for i in range(tc.member_count(ex())):
+            for i in xrange(tc.member_count(ex())):
                 if tc.is_member_key(i, ex()):
                     keys.append(tc.member_name(i, ex()))
 
