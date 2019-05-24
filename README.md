@@ -42,7 +42,7 @@ module my {
 Once this topic is generated (rtiddsgen), compiled, and packaged as a shared
 library, you can use it with this library.
 
-####Subscribe:####
+#### Subscribe: ####
 
 Lets say you just want to print out a representation of the topic data. Lets
 also say that your topic library is called `libmy_topics.so` and the location
@@ -90,7 +90,7 @@ If desired, you can also specify a few other options:
 
 Subscriptions can also be canceled by calling `topic.unsubscribe()`
 
-####Publish:####
+#### Publish: ####
 
 To publish a data sample, you simply construct a python dictionary that matches
 the structure of the topic. e.g.:
